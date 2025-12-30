@@ -1,0 +1,128 @@
+// index.js (Main)
+import "dotenv/config";
+import fs from "fs/promises";
+import bcrypt from "bcrypt";
+import { execSync } from "child_process";
+import { existsSync } from "fs";
+
+import {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+} from "discord.js";
+
+import { setupPlayer } from "./music/player.js";
+import { organizeCasesToFolder } from "./organize-cases.js";
+import { ensureDataPath } from "./utils/storage.js";
+import { getStaffConfig } from "./utils/staffConfig.js";
+import { handleCommand } from "./commands/index.js";
+
+await ensureDataPath();
+
+
+import { handleCounting } from "./counting/index.js";
+import { handleLeveling } from "./profile/level/index.js";
+
+
+/* ===================== DEPLOY COMMANDS ===================== */
+
+if (existsSync("./deploy-commands.js")) {
+  try {
+    console.log("📦 Deploying slash commands...");
+    execSync("node ./deploy-commands.js", { stdio: "inherit" });
+    console.log("✅ Slash commands deployed.");
+  } catch (err) {
+    console.error("❌ Failed to deploy commands:", err);
+  }
+}
+
+
+/* ===================== DISCORD CLIENT ===================== */
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+client.once("ready", async () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  client.user.setPresence({
+    activities: [{ name: "Serving Spy Group", type: 2 }],
+    status: "online",
+  });
+
+  try {
+    await organizeCasesToFolder(await loadAllCases());
+  } catch {}
+});
+
+/* ===================== INTERACTIONS ===================== */
+
+
+import { handleLevelRoleComponents } from "./profile/level/core.js";
+import { routeInteraction } from "./router.js";
+import { handleModmailCore } from "./modmail/core.js";
+
+client.on("interactionCreate", async interaction => {
+  try {
+	
+	if (await handleLevelRoleComponents(interaction)) return;
+    // 🔹 FIRST: handle ModMail component interactions (forum select, buttons, etc.)
+    if (await handleModmailCore(interaction)) return;
+
+    // 🔹 ONLY slash commands go through the router
+    if (!interaction.isChatInputCommand()) return;
+	
+
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "❌ This command can only be used in a server.",
+        ephemeral: true,
+      });
+    }
+
+    await routeInteraction(interaction);
+
+  } catch (err) {
+    console.error("❌ Interaction handler crash:", err);
+
+    if (!interaction.replied && interaction.isRepliable()) {
+      await interaction.reply({
+        content: "❌ An unexpected error occurred.",
+        ephemeral: true,
+      });
+    }
+  }
+});
+
+
+
+/* ===================== MESSAGE CREATE ===================== */
+
+handleLeveling(message);
+client.on("messageCreate", async message => {
+  // 🔢 Counting system (hard-gated by setup)
+  await handleCounting(message);
+
+  // ⛔ Ignore bots for everything else
+  if (message.author.bot) return;
+
+  // (You can add more message-based logic here later if needed)
+});
+
+
+/* ===================== LOGIN ===================== */
+
+if (!process.env.DISCORD_BOT_TOKEN) {
+  console.error("❌ DISCORD_BOT_TOKEN missing");
+  process.exit(1);
+}
+
+client.login(process.env.DISCORD_BOT_TOKEN);
+client.player = setupPlayer(client);
+
+
