@@ -8,7 +8,7 @@ import {
   ButtonStyle,
 } from "discord.js";
 import { lvlrolesWizard } from "./lvlrolesWizard.js";
-import { setLevelRoleConfig } from "./levelRoles.js";
+import { setLevelRoleConfig } from "./levelroles.js";
 
 export async function handleLevelRoleComponents(interaction) {
   const guildId = interaction.guild?.id;
@@ -228,3 +228,4 @@ async function showPreview(interaction) {
 
   await interaction.update({ embeds: [embed], components: [row] });
 }
+
