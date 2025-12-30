@@ -15,7 +15,6 @@ import { setupPlayer } from "./music/player.js";
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
 import { ensureDataPath } from "./utils/storage.js";
 import { getStaffConfig } from "./moderation/staffConfig.js";
-import { handleCommand } from "./commands/index.js";
 
 await ensureDataPath();
 
@@ -64,19 +63,20 @@ client.once("ready", async () => {
 
 
 import { handleLevelRoleComponents } from "./profile/level/core.js";
-import { routeInteraction } from "./router.js";
 import { handleModmailCore } from "./modmail/core.js";
+import { routeInteraction } from "./router.js";
 
 client.on("interactionCreate", async interaction => {
   try {
-	
-	if (await handleLevelRoleComponents(interaction)) return;
-    // 🔹 FIRST: handle ModMail component interactions (forum select, buttons, etc.)
+    /* ===================== COMPONENT INTERACTIONS ===================== */
+    // Buttons, modals, selects (no slash commands)
+
+    if (await handleLevelRoleComponents(interaction)) return;
     if (await handleModmailCore(interaction)) return;
 
-    // 🔹 ONLY slash commands go through the router
+    /* ===================== SLASH COMMANDS ===================== */
+
     if (!interaction.isChatInputCommand()) return;
-	
 
     if (!interaction.inGuild()) {
       return interaction.reply({
@@ -98,6 +98,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 });
+
 
 
 
