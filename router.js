@@ -1,5 +1,5 @@
 import { handleModeration } from "./moderation/commands/index.js";
-import { handleMusic } from "./music/index.js";
+import { handleMusic } from "./music/cmds/index.js";
 import { handleProfile } from "./profile/index.js";
 import { handleModmail } from "./modmail/index.js";
 
@@ -66,3 +66,4 @@ export async function routeInteraction(interaction) {
   /* ===================== FALLBACK ===================== */
   console.warn(`[ROUTER] Unhandled command: /${command}`);
 }
+
