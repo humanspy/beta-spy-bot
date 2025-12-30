@@ -1,4 +1,4 @@
-import { Player } from "@discord-player/core";
+import { Player } from "discord-player";
 import { EmbedBuilder } from "discord.js";
 
 import {
@@ -7,7 +7,8 @@ import {
   SoundCloudExtractor,
   AppleMusicExtractor,
   DeezerExtractor
-} from "@discord-player/extractor";
+} import { Player } from "discord-player";
+
 
 const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
