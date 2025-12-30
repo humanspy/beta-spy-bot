@@ -12,7 +12,7 @@ import {
 } from "discord.js";
 
 import { setupPlayer } from "./music/player.js";
-import { organizeCasesToFolder } from "./organize-cases.js";
+import { organizeCasesToFolder } from "./moderation/organize-cases.js";
 import { ensureDataPath } from "./utils/storage.js";
 import { getStaffConfig } from "./utils/staffConfig.js";
 import { handleCommand } from "./commands/index.js";
