@@ -10,11 +10,14 @@
     "start": "node index.js",
     "deploy": "node deploy-commands.js"
   },
-  "dependencies": {
+   "dependencies": {
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "bcrypt": "^5.1.1",
-    "cookie-parser": "^1.4.6"
+    "cookie-parser": "^1.4.6",
+
+    "@discord-player/core": "^6.7.1",
+    "@discord-player/extractor": "^6.7.1"
   }
 }
