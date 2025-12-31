@@ -8,7 +8,7 @@ import { casesRouter } from "./routes/cases.js";
 import { warningsRouter } from "./routes/warnings.js";
 import { staffRouter } from "./routes/staff.js";
 import { bansRouter } from "./routes/bans.js";
-import { confirmRouter } from "./routes/confirm.js";
+import { confirmRouter } from "./routes/confirms.js";
 import { permissionsRouter } from "./routes/permissions.js";
 import { logoutRouter } from "./routes/logout.js";
 import { meRouter } from "./routes/me.js";
@@ -53,3 +53,4 @@ app.use(express.static("./web/public"));
 app.listen(3000, () => {
   console.log("🌐 Case dashboard running securely on port 3000");
 });
+
