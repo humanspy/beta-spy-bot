@@ -1,27 +1,29 @@
 import fs from "fs";
 import path from "path";
 
-const DATA_DIR = "./data/levels";
-const XP_FILE = guildId => path.join(DATA_DIR, `${guildId}.json`);
+/* ===================== PATHS ===================== */
 
-/* ===================== HELPERS ===================== */
+export const DATA_DIR = "./data/levels";
+export const XP_FILE = guildId => path.join(DATA_DIR, `${guildId}.json`);
 
-function ensureDir() {
+/* ===================== FILE HELPERS ===================== */
+
+export function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 }
 
-function readJSON(file) {
+export function readJSON(file) {
   if (!fs.existsSync(file)) return {};
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function writeJSON(file, data) {
+export function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-/* ===================== CORE ===================== */
+/* ===================== GUILD STORAGE ===================== */
 
 /**
  * Load ALL XP data for a guild
@@ -62,10 +64,24 @@ export function getUserData(guildId, userId) {
 }
 
 /**
- * Update XP data for a single user
+ * Set XP data for a single user
  */
 export function setUserData(guildId, userId, userData) {
   const data = loadUserXP(guildId);
   data[userId] = userData;
   saveUserXP(guildId, data);
+}
+
+/* ===================== GUILD API ===================== */
+
+/**
+ * Get all users in a guild with XP data
+ */
+export function getGuildUsers(guildId) {
+  const data = loadUserXP(guildId);
+
+  return Object.entries(data).map(([userId, userData]) => ({
+    userId,
+    ...userData,
+  }));
 }
