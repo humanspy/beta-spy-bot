@@ -84,6 +84,24 @@ export async function createCase(
   return caseNumber;
 }
 
+/**
+ * Delete a moderation case by case number
+ */
+export async function deleteCase(guildId, caseNumber) {
+  const data = await loadCases(guildId);
+
+  const before = data.cases.length;
+  data.cases = data.cases.filter(c => c.caseNumber !== caseNumber);
+
+  if (data.cases.length === before) {
+    return false; // case not found
+  }
+
+  await saveCases(guildId, data);
+  return true;
+}
+
+
 /* ===================== WARNINGS ===================== */
 
 export async function addWarning({
@@ -276,6 +294,7 @@ export function hasWebPermission(guildId, userId, permission) {
 
   return false;
 }
+
 
 
 
