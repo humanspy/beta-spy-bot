@@ -9,6 +9,7 @@ import {
 } from "../utils/duration.js";
 
 export default async function timeout(interaction, sub) {
+  /* ===================== ADD TIMEOUT ===================== */
   if (sub === "add") {
     if (!hasPermission(interaction.member, "timeout")) {
       const role = getHighestStaffRole(interaction.member);
@@ -19,35 +20,51 @@ export default async function timeout(interaction, sub) {
     }
 
     const targetUser = interaction.options.getUser("user");
-    const duration = parseDurationChoice(
-      interaction.options.getString("duration")
-    );
-    const reason = interaction.options.getString("reason");
+    const durationChoice = interaction.options.getString("duration");
+    const reason =
+      interaction.options.getString("reason") || "No reason provided";
+
+    const durationMinutes = parseDurationChoice(durationChoice);
+    if (!durationMinutes || durationMinutes <= 0) {
+      return interaction.reply({
+        content: "❌ Invalid duration.",
+        ephemeral: true,
+      });
+    }
 
     const member = await interaction.guild.members.fetch(targetUser.id);
-    await member.timeout(duration * 60 * 1000, reason);
+    await member.timeout(durationMinutes * 60 * 1000, reason);
 
     const caseNumber = await createCase(
       interaction.guild.id,
-      "timeout",
+      "TIMEOUT",
       targetUser.id,
       targetUser.username,
       interaction.user.id,
       interaction.user.tag,
       reason,
       null,
-      duration
+      durationMinutes
     );
 
     return interaction.reply({
-      content: `⏱️ **${targetUser.tag}** timed out for ${getDurationLabel(
-        duration
-      )} (Case #${caseNumber})`,
+      content:
+        `⏱️ **${targetUser.tag}** timed out for ` +
+        `**${getDurationLabel(durationMinutes)}** (Case #${caseNumber})`,
       ephemeral: true,
     });
   }
 
+  /* ===================== REMOVE TIMEOUT ===================== */
   if (sub === "remove") {
+    if (!hasPermission(interaction.member, "timeout")) {
+      const role = getHighestStaffRole(interaction.member);
+      return interaction.reply({
+        content: `❌ Role **${role?.name ?? "Unknown"}** has no permission.`,
+        ephemeral: true,
+      });
+    }
+
     const targetUser = interaction.options.getUser("user");
     const reason =
       interaction.options.getString("reason") || "Timeout removed";
