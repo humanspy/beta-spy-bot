@@ -1,37 +1,40 @@
 import fs from "fs";
 import path from "path";
 
-const FILE = path.resolve("level/data.json");
+const DATA_DIR = "./data/levels";
+const XP_FILE = guildId => path.join(DATA_DIR, `${guildId}.json`);
 
-if (!fs.existsSync(FILE)) {
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify({}));
+/* ===================== HELPERS ===================== */
+
+function ensureDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
 }
 
-function load() {
-  return JSON.parse(fs.readFileSync(FILE, "utf8"));
+function readJSON(file) {
+  if (!fs.existsSync(file)) return {};
+  return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function save(data) {
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-export function getUserData(guildId, userId) {
-  const data = load();
-  data[guildId] ??= {};
-  data[guildId][userId] ??= { xp: 0, level: 0 };
-  save(data);
-  return data[guildId][userId];
+/* ===================== EXPORTS ===================== */
+
+/**
+ * Load XP data for a guild
+ */
+export function loadUserXP(guildId) {
+  ensureDir();
+  return readJSON(XP_FILE(guildId));
 }
 
-export function setUserData(guildId, userId, userData) {
-  const data = load();
-  data[guildId] ??= {};
-  data[guildId][userId] = userData;
-  save(data);
-}
-
-export function getGuildUsers(guildId) {
-  const data = load();
-  return data[guildId] ?? {};
+/**
+ * Save XP data for a guild
+ */
+export function saveUserXP(guildId, data) {
+  ensureDir();
+  writeJSON(XP_FILE(guildId), data);
 }
