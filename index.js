@@ -50,8 +50,8 @@ const client = new Client({
 client.once("ready", async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.user.setPresence({
-    activities: [{ name: "Serving Spy Group", type: 2 }],
-    status: "online",
+    activities: [{ name: "DM to open Ticket", type: 2 }],
+    status: "dnd",
   });
 
   try {
