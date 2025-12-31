@@ -106,6 +106,14 @@ export async function addWarning({
     severity
   );
 }
+/**
+ * Load all warning cases for a guild
+ */
+export async function loadWarnings(guildId) {
+  const data = await loadCases(guildId);
+  return data.cases.filter(c => c.type === "WARN");
+}
+
 
 /* ===================== BOT OWNER ===================== */
 
@@ -231,4 +239,5 @@ export function hasWebPermission(guildId, userId, permission) {
 
   return false;
 }
+
 
