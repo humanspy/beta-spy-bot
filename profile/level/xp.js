@@ -1,4 +1,4 @@
-import { getLevelRoleConfig } from "./levelRoles.js";
+import { getLevelRoleConfig } from "./levelroles.js";
 import { loadUserXP, saveUserXP } from "./storage.js";
 
 export function addXP(guildId, userId) {
@@ -47,3 +47,4 @@ export async function applyLevelRoles(member, level) {
     }
   }
 }
+
