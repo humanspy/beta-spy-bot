@@ -1,12 +1,11 @@
 import express from "express";
 import { hasWebPermission } from "../../moderation/core.js";
 import { requireAuth, requireGuildAccess } from "../middleware/auth.js";
-import { logAudit } from "../audit.js";
 import { createConfirmation } from "../confirmations.js";
 
 export const bansRouter = express.Router();
 
-/* ===================== HACKBAN (ADD) ===================== */
+/* ===================== HACKBAN ===================== */
 /* Permission: hackban */
 
 bansRouter.post("/:guildId/hackban", requireAuth, requireGuildAccess, async (req, res) => {
@@ -37,6 +36,4 @@ bansRouter.post("/:guildId/hackban", requireAuth, requireGuildAccess, async (req
 /* Permission: unban */
 
 bansRouter.post("/:guildId/unban", requireAuth, requireGuildAccess, async (req, res) => {
-  const { guildId } = req.params;
-  const { userId, reason } = req.body;
-  const actorId = req.cook
+  const { g
