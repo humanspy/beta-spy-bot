@@ -14,7 +14,7 @@ import { logoutRouter } from "./routes/logout.js";
 import { meRouter } from "./routes/me.js";
 import { roleRouter } from "./routes/role.js";
 import { modmailRouter } from "./routes/modmail.js";
-
+import { appealsRouter } from "./routes/appeals.js";
 
 const app = express();
 
@@ -44,6 +44,7 @@ app.use("/api/logout", logoutRouter);
 app.use("/api/me", meRouter);
 app.use("/api/role", roleRouter);
 app.use("/api/modmail", modmailRouter);
+app.use("/api/appeals", appealsRouter);
 
 
 
@@ -53,4 +54,5 @@ app.use(express.static("./web/public"));
 app.listen(3000, () => {
   console.log("🌐 Case dashboard running securely on port 3000");
 });
+
 
