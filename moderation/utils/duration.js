@@ -2,8 +2,8 @@
 
 /**
  * Parses a duration string like:
- * 10m, 2h, 1d, 30s
- * Returns milliseconds
+ * 10s, 10m, 2h, 1d
+ * Returns milliseconds or null
  */
 export function parseDuration(input) {
   if (!input) return null;
@@ -24,8 +24,16 @@ export function parseDuration(input) {
 }
 
 /**
- * Converts milliseconds into a readable label
- * Example: 600000 → "10 minutes"
+ * Used for select menus / preset choices
+ * Example values: "10m", "1h", "1d", "custom"
+ */
+export function parseDurationChoice(choice) {
+  if (!choice || choice === "custom") return null;
+  return parseDuration(choice);
+}
+
+/**
+ * Converts milliseconds into a human-readable label
  */
 export function getDurationLabel(ms) {
   if (!ms || ms <= 0) return "Permanent";
