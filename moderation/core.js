@@ -113,6 +113,22 @@ export async function loadWarnings(guildId) {
   const data = await loadCases(guildId);
   return data.cases.filter(c => c.type === "WARN");
 }
+/**
+ * Save warning cases for a guild (case-based system)
+ */
+export async function saveWarnings(guildId, warnings) {
+  const data = await loadCases(guildId);
+
+  // Remove existing WARN cases
+  data.cases = data.cases.filter(c => c.type !== "WARN");
+
+  // Re-add updated warnings
+  for (const warn of warnings) {
+    data.cases.push(warn);
+  }
+
+  await saveCases(guildId, data);
+}
 
 
 /* ===================== BOT OWNER ===================== */
@@ -239,5 +255,6 @@ export function hasWebPermission(guildId, userId, permission) {
 
   return false;
 }
+
 
 
