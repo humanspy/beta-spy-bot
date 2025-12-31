@@ -1,53 +1,42 @@
+// moderation/utils/duration.js
+
 /**
- * Parses a duration string into milliseconds.
- *
- * Supported formats:
- *  - 10s
- *  - 5m
- *  - 2h
- *  - 3d
- *  - 1w
- *
- * @param {string} input
- * @returns {number|null} milliseconds or null if invalid
+ * Parses a duration string like:
+ * 10m, 2h, 1d, 30s
+ * Returns milliseconds
  */
 export function parseDuration(input) {
-  if (!input || typeof input !== "string") return null;
+  if (!input) return null;
 
-  const match = input.toLowerCase().match(/^(\d+)(s|m|h|d|w)$/);
+  const match = input.match(/^(\d+)(s|m|h|d)$/i);
   if (!match) return null;
 
-  const value = Number(match[1]);
-  const unit = match[2];
+  const value = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
 
-  if (value <= 0) return null;
-
-  const multipliers = {
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-    w: 7 * 24 * 60 * 60 * 1000,
-  };
-
-  return value * multipliers[unit];
+  switch (unit) {
+    case "s": return value * 1000;
+    case "m": return value * 60 * 1000;
+    case "h": return value * 60 * 60 * 1000;
+    case "d": return value * 24 * 60 * 60 * 1000;
+    default: return null;
+  }
 }
 
 /**
- * Formats milliseconds into a human-readable duration.
- * @param {number} ms
- * @returns {string}
+ * Converts milliseconds into a readable label
+ * Example: 600000 → "10 minutes"
  */
-export function formatDuration(ms) {
-  if (!ms || ms <= 0) return "0s";
+export function getDurationLabel(ms) {
+  if (!ms || ms <= 0) return "Permanent";
 
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (days >= 1) return `${days}d`;
-  if (hours >= 1) return `${hours}h`;
-  if (minutes >= 1) return `${minutes}m`;
-  return `${seconds}s`;
+  if (days > 0) return `${days} day${days !== 1 ? "s" : ""}`;
+  if (hours > 0) return `${hours} hour${hours !== 1 ? "s" : ""}`;
+  if (minutes > 0) return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  return `${seconds} second${seconds !== 1 ? "s" : ""}`;
 }
