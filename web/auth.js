@@ -47,6 +47,8 @@ authRouter.get("/callback", async (req, res) => {
 
     const guilds = await guildRes.json();
 
+    const isProd = process.env.NODE_ENV === "production";
+    
     res.cookie(
       "session",
       {
@@ -57,10 +59,11 @@ authRouter.get("/callback", async (req, res) => {
       },
       {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProd,          // ✅ only secure in prod
+        sameSite: isProd ? "none" : "lax", // ✅ browser accepts it
       }
     );
+
 
     // ✅ redirect back to dashboard after login
     res.redirect("/");
@@ -69,4 +72,5 @@ authRouter.get("/callback", async (req, res) => {
     res.status(500).send("Authentication failed");
   }
 });
+
 
