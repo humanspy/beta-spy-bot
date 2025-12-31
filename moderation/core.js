@@ -128,7 +128,7 @@ function isUserOverridden(userId) {
   return !!userOverrides[userId];
 }
 
-function getHighestStaffRole(member) {
+export function getHighestStaffRole(member) {
   if (!member) return null;
 
   const config = getStaffConfig(member.guild.id);
@@ -231,3 +231,4 @@ export function hasWebPermission(guildId, userId, permission) {
 
   return false;
 }
+
