@@ -17,5 +17,9 @@
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.6",
     "discord-player": "^6.6.10"
+    "cookie-parser": "^1.4.6",
+    "express-rate-limit": "^7.4.0",
+    "node-fetch": "^3.3.2",
+    "play-dl": "^1.9.7"
   }
 }
