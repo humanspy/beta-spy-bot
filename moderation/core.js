@@ -3,6 +3,80 @@
 import fs from "fs/promises";
 import { getStaffConfig } from "./staffConfig.js";
 import { organizeCasesToFolder } from "./organize-cases.js";
+import fs from "fs";
+import path from "path";
+
+/* ===================== STORAGE ===================== */
+
+const DATA_DIR = "./data/moderation";
+const CASES_FILE = path.join(DATA_DIR, "cases.json");
+
+function ensureDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
+function loadCases() {
+  ensureDir();
+  if (!fs.existsSync(CASES_FILE)) {
+    return {};
+  }
+  return JSON.parse(fs.readFileSync(CASES_FILE, "utf8"));
+}
+
+function saveCases(data) {
+  ensureDir();
+  fs.writeFileSync(CASES_FILE, JSON.stringify(data, null, 2));
+}
+
+/* ===================== WARNINGS ===================== */
+
+/**
+ * Adds a warning case for a user
+ */
+export function addWarning({
+  guildId,
+  userId,
+  username,
+  moderatorId,
+  moderatorName,
+  reason,
+  severity = "moderate",
+}) {
+  const allCases = loadCases();
+
+  if (!allCases[guildId]) {
+    allCases[guildId] = {
+      nextCaseNumber: 1,
+      cases: [],
+    };
+  }
+
+  const guildData = allCases[guildId];
+  const caseNumber = guildData.nextCaseNumber++;
+
+  guildData.cases.push({
+    caseNumber,
+    type: "WARN",
+    userId,
+    username,
+    moderatorId,
+    moderatorName,
+    reason,
+    severity,
+    timestamp: Date.now(),
+  });
+
+  saveCases(allCases);
+
+  // Keep case folders organized
+  try {
+    organizeCasesToFolder(allCases);
+  } catch {}
+
+  return caseNumber;
+}
 
 /* ===================== BOT OWNER ===================== */
 
@@ -277,4 +351,5 @@ export {
   getOverrideChannel,
   hasWebPermission
 };
+
 
