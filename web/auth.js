@@ -5,7 +5,7 @@ export const authRouter = express.Router();
 
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-const REDIRECT_URI = "https://cases.spy.gaming.com/auth/callback";
+const REDIRECT_URI = "https://cases.spy-gaming.com/auth/callback";
 
 authRouter.get("/login", (req, res) => {
   const url =
@@ -69,3 +69,4 @@ authRouter.get("/callback", async (req, res) => {
     res.status(500).send("Authentication failed");
   }
 });
+
