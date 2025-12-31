@@ -104,7 +104,6 @@ client.on("interactionCreate", async interaction => {
 
 /* ===================== MESSAGE CREATE ===================== */
 
-handleLeveling(message);
 client.on("messageCreate", async message => {
   // 🔢 Counting system (hard-gated by setup)
   await handleCounting(message);
