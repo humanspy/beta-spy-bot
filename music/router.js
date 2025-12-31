@@ -1,4 +1,4 @@
-import { handleMusicCommand } from "./cmds/index.js";
+import { musicCmd } from "./cmds/index.js";
 
 export function isMusicCommand(commandName) {
   return [
@@ -15,3 +15,4 @@ export function isMusicCommand(commandName) {
 export async function handleMusic(interaction) {
   return handleMusicCommand(interaction);
 }
+
