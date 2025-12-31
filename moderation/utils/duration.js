@@ -1,53 +1,50 @@
-/**
- * Parses a duration string into milliseconds.
- *
- * Supported formats:
- *  - 10s
- *  - 5m
- *  - 2h
- *  - 3d
- *  - 1w
- *
- * @param {string} input
- * @returns {number|null} milliseconds or null if invalid
- */
-export function parseDuration(input) {
-  if (!input || typeof input !== "string") return null;
+/* ===================== PARSING ===================== */
 
-  const match = input.toLowerCase().match(/^(\d+)(s|m|h|d|w)$/);
+/**
+ * Convert a duration choice string into minutes
+ * @param {string} value
+ * @returns {number|null}
+ */
+export function parseDurationChoice(value) {
+  if (!value) return null;
+
+  const match = value.match(/^(\d+)(m|h|d)$/i);
   if (!match) return null;
 
-  const value = Number(match[1]);
-  const unit = match[2];
+  const amount = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
 
-  if (value <= 0) return null;
-
-  const multipliers = {
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-    w: 7 * 24 * 60 * 60 * 1000,
-  };
-
-  return value * multipliers[unit];
+  switch (unit) {
+    case "m":
+      return amount;
+    case "h":
+      return amount * 60;
+    case "d":
+      return amount * 1440;
+    default:
+      return null;
+  }
 }
 
+/* ===================== LABEL ===================== */
+
 /**
- * Formats milliseconds into a human-readable duration.
- * @param {number} ms
+ * Convert minutes into a human-readable label
+ * @param {number} minutes
  * @returns {string}
  */
-export function formatDuration(ms) {
-  if (!ms || ms <= 0) return "0s";
+export function getDurationLabel(minutes) {
+  if (!minutes || minutes <= 0) return "Unknown duration";
 
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  }
 
-  if (days >= 1) return `${days}d`;
-  if (hours >= 1) return `${hours}h`;
-  if (minutes >= 1) return `${minutes}m`;
-  return `${seconds}s`;
+  if (minutes < 1440) {
+    const hours = Math.floor(minutes / 60);
+    return `${hours} hour${hours !== 1 ? "s" : ""}`;
+  }
+
+  const days = Math.floor(minutes / 1440);
+  return `${days} day${days !== 1 ? "s" : ""}`;
 }
