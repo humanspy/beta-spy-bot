@@ -123,6 +123,28 @@ export async function saveWarnings(guildId, warnings) {
   await saveCases(guildId, data);
 }
 
+export async function revertWarning(guildId, targetUserId) {
+  const data = await loadCases(guildId);
+
+  // Find last warning for this user
+  const index = [...data.cases]
+    .reverse()
+    .findIndex(
+      c => c.type === "WARN" && c.userId === targetUserId
+    );
+
+  if (index === -1) return false;
+
+  // Convert reverse index to real index
+  const realIndex = data.cases.length - 1 - index;
+
+  data.cases.splice(realIndex, 1);
+  await saveCases(guildId, data);
+
+  return true;
+}
+
+
 /* ===================== OVERRIDE CODES ===================== */
 
 async function loadOverrideCodes() {
@@ -243,5 +265,6 @@ export function hasWebPermission(guildId, userId, permission) {
 
   return bestRole.permissions.includes(permission);
 }
+
 
 
