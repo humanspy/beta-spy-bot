@@ -6,13 +6,19 @@ import current from "./current.js";
 import volume from "./volume.js";
 import skip from "./skip.js";
 
-export default async function musicCmd(interaction) {
-  const sub = interaction.commandName;
-  if (cmd === "skip") return skip(interaction);
+export async function musicCmd(interaction) {
+  const sub = interaction.options.getSubcommand();
+
   if (sub === "play") return play(interaction);
   if (sub === "pause") return pause(interaction);
   if (sub === "stop") return stop(interaction);
   if (sub === "queue") return queue(interaction);
   if (sub === "current") return current(interaction);
   if (sub === "volume") return volume(interaction);
+  if (sub === "skip") return skip(interaction);
+
+  return interaction.reply({
+    content: "❌ Unknown music command.",
+    ephemeral: true,
+  });
 }
