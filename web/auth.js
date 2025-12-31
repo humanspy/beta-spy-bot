@@ -19,44 +19,53 @@ authRouter.get("/login", (req, res) => {
 });
 
 authRouter.get("/callback", async (req, res) => {
-  const code = req.query.code;
+  try {
+    const code = req.query.code;
 
-  const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body:
-      `client_id=${CLIENT_ID}` +
-      `&client_secret=${CLIENT_SECRET}` +
-      `&grant_type=authorization_code` +
-      `&code=${code}` +
-      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`,
-  });
+    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body:
+        `client_id=${CLIENT_ID}` +
+        `&client_secret=${CLIENT_SECRET}` +
+        `&grant_type=authorization_code` +
+        `&code=${code}` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`,
+    });
 
-  const token = await tokenRes.json();
+    const token = await tokenRes.json();
 
-  const userRes = await fetch("https://discord.com/api/users/@me", {
-    headers: { Authorization: `Bearer ${token.access_token}` },
-  });
+    const userRes = await fetch("https://discord.com/api/users/@me", {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    });
 
-  const user = await userRes.json();
+    const user = await userRes.json();
 
-  const guildRes = await fetch("https://discord.com/api/users/@me/guilds", {
-    headers: { Authorization: `Bearer ${token.access_token}` },
-  });
+    const guildRes = await fetch("https://discord.com/api/users/@me/guilds", {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    });
 
-  const guilds = await guildRes.json();
+    const guilds = await guildRes.json();
 
-  res.cookie(
-    "session",
-    {
-      id: user.id,
-      username: user.username,
-      avatar: user.avatar,
-      guilds,
-    },
-    {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    }
-  );
+    res.cookie(
+      "session",
+      {
+        id: user.id,
+        username: user.username,
+        avatar: user.avatar,
+        guilds,
+      },
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+      }
+    );
+
+    // ✅ redirect back to dashboard after login
+    res.redirect("/");
+  } catch (err) {
+    console.error("OAuth callback error:", err);
+    res.status(500).send("Authentication failed");
+  }
+});
