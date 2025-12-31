@@ -213,3 +213,35 @@ export async function sendLog(guild, embed) {
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (channel) await channel.send({ embeds: [embed] });
 }
+
+/* ===================== WEB PERMISSIONS ===================== */
+
+/**
+ * Web-safe permission check
+ * Uses userId instead of Discord GuildMember
+ */
+export function hasWebPermission(guildId, userId, permission) {
+  // Bot owner override
+  const override = userOverrides[userId];
+  if (override?.permissions === "all") return true;
+
+  const config = getStaffConfig(guildId);
+  if (!config?.staffRoles) return false;
+
+  let bestRole = null;
+
+  for (const role of config.staffRoles) {
+    if (role.users?.includes(userId)) {
+      if (!bestRole || role.level < bestRole.level) {
+        bestRole = role;
+      }
+    }
+  }
+
+  if (!bestRole) return false;
+  if (bestRole.permissions === "all") return true;
+
+  return bestRole.permissions.includes(permission);
+}
+
+
