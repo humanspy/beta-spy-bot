@@ -36,4 +36,25 @@ bansRouter.post("/:guildId/hackban", requireAuth, requireGuildAccess, async (req
 /* Permission: unban */
 
 bansRouter.post("/:guildId/unban", requireAuth, requireGuildAccess, async (req, res) => {
-  const { g
+  const { guildId } = req.params;
+  const { userId, reason } = req.body;
+  const actorId = req.cookies.session.id;
+
+  if (!hasWebPermission(guildId, actorId, "unban")) {
+    return res.status(403).json({ error: "Missing permission: unban" });
+  }
+
+  const confirmationId = createConfirmation({
+    guildId,
+    action: "UNBAN",
+    details: {
+      targetUserId: userId,
+      reason,
+    },
+  });
+
+  res.json({
+    requiresConfirmation: true,
+    confirmationId,
+  });
+});
