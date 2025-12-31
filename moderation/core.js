@@ -234,6 +234,27 @@ export async function sendLog(guild, embed, actorId) {
   } catch {}
 }
 
+/**
+ * Validate and consume a ban override code
+ */
+export async function validateAndUseOverrideCode(code, userId) {
+  const data = await loadOverrideCodes();
+
+  const entry = data.codes.find(
+    c => c.code === code && c.used !== true
+  );
+
+  if (!entry) return null;
+
+  entry.used = true;
+  entry.usedBy = userId;
+  entry.usedAt = Date.now();
+
+  await saveOverrideCodes(data);
+  return entry;
+}
+
+
 /* ===================== WEBSITE PERMISSIONS ===================== */
 
 export function hasWebPermission(guildId, userId, permission) {
@@ -255,6 +276,7 @@ export function hasWebPermission(guildId, userId, permission) {
 
   return false;
 }
+
 
 
 
