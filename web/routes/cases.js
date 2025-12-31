@@ -5,13 +5,17 @@ import {
   hasWebPermission,
 } from "../../moderation/core.js";
 import { requireAuth, requireGuildAccess } from "../middleware/auth.js";
-import { logAudit } from "../audit.js";
+import { createConfirmation } from "../confirmations.js";
 
 export const casesRouter = express.Router();
+
+/* ===================== GET CASES ===================== */
 
 casesRouter.get("/:guildId", requireAuth, requireGuildAccess, async (req, res) => {
   res.json(await loadCases(req.params.guildId));
 });
+
+/* ===================== SEARCH CASES ===================== */
 
 casesRouter.get("/:guildId/search", requireAuth, requireGuildAccess, async (req, res) => {
   const { q, type, userId } = req.query;
@@ -26,7 +30,7 @@ casesRouter.get("/:guildId/search", requireAuth, requireGuildAccess, async (req,
   res.json(cases);
 });
 
-import { createConfirmation } from "../confirmations.js";
+/* ===================== DELETE CASE ===================== */
 
 casesRouter.delete("/:guildId/:caseNumber", requireAuth, requireGuildAccess, async (req, res) => {
   const { guildId, caseNumber } = req.params;
@@ -46,8 +50,4 @@ casesRouter.delete("/:guildId/:caseNumber", requireAuth, requireGuildAccess, asy
     requiresConfirmation: true,
     confirmationId: confirmId,
   });
-});
-
-
-  res.json({ success: true });
 });
