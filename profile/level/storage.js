@@ -21,10 +21,10 @@ function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-/* ===================== EXPORTS ===================== */
+/* ===================== CORE ===================== */
 
 /**
- * Load XP data for a guild
+ * Load ALL XP data for a guild
  */
 export function loadUserXP(guildId) {
   ensureDir();
@@ -32,9 +32,40 @@ export function loadUserXP(guildId) {
 }
 
 /**
- * Save XP data for a guild
+ * Save ALL XP data for a guild
  */
 export function saveUserXP(guildId, data) {
   ensureDir();
   writeJSON(XP_FILE(guildId), data);
+}
+
+/* ===================== USER API ===================== */
+
+/**
+ * Get or create XP data for a single user
+ */
+export function getUserData(guildId, userId) {
+  const data = loadUserXP(guildId);
+
+  if (!data[userId]) {
+    data[userId] = {
+      xp: 0,
+      level: 0,
+      messages: 0,
+      lastMessage: 0,
+    };
+
+    saveUserXP(guildId, data);
+  }
+
+  return data[userId];
+}
+
+/**
+ * Update XP data for a single user
+ */
+export function setUserData(guildId, userId, userData) {
+  const data = loadUserXP(guildId);
+  data[userId] = userData;
+  saveUserXP(guildId, data);
 }
