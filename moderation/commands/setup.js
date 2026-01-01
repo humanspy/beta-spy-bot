@@ -149,7 +149,7 @@ export default {
       });
     }
 
-    /* ===== ROLE COUNT MODAL ===== */
+    /* ===================== ROLE COUNT MODAL ===================== */
 
     const modal = new ModalBuilder()
       .setCustomId("setup_role_count")
@@ -205,19 +205,18 @@ export default {
           ),
         ],
         flags: 64,
-        fetchReply: true, // 🔴 REQUIRED
+        fetchReply: true,
       });
 
-     const roleInt = await roleMsg.awaitMessageComponent({
-      componentType: 8,
-      time: WIZARD_TIMEOUT,
-      filter: i => {
-        i.deferUpdate(); // 🔴 ACK IMMEDIATELY
-        return i.user.id === interaction.user.id;
-      },
-     });
-      
-      const roleId = roleInt.values[0];
+      const roleInt = await roleMsg.awaitMessageComponent({
+        componentType: 8,
+        time: WIZARD_TIMEOUT,
+        filter: async i => {
+          if (i.user.id !== interaction.user.id) return false;
+          await i.deferUpdate();
+          return true;
+        },
+      });
 
       const permMsg = await modalInt.followUp({
         content: "Select permissions for this role",
@@ -231,20 +230,21 @@ export default {
           ),
         ],
         flags: 64,
-        fetchReply: true, // 🔴 REQUIRED
+        fetchReply: true,
       });
 
       const permInt = await permMsg.awaitMessageComponent({
         componentType: 3,
         time: WIZARD_TIMEOUT,
-        filter: i => {
-          i.deferUpdate(); // 🔴 CRITICAL
-          return i.user.id === interaction.user.id;
+        filter: async i => {
+          if (i.user.id !== interaction.user.id) return false;
+          await i.deferUpdate();
+          return true;
         },
       });
 
       config.staffRoles.push({
-        roleId,
+        roleId: roleInt.values[0],
         level: i,
         permissions: permInt.values.includes("all")
           ? "all"
@@ -254,7 +254,7 @@ export default {
 
     /* ===================== CHANNELS ===================== */
 
-   async function askChannel(label) {
+    async function askChannel(label) {
       const msg = await modalInt.followUp({
         content: `Select **${label}** channel`,
         components: [
@@ -269,18 +269,17 @@ export default {
       });
 
       const i = await msg.awaitMessageComponent({
-        componentType: 8, // ChannelSelect
+        componentType: 8,
         time: WIZARD_TIMEOUT,
-        filter: interaction => {
-          // 🔴 ACKNOWLEDGE IMMEDIATELY
-          interaction.deferUpdate();
-          return interaction.user.id === modalInt.user.id;
-      },
+        filter: async i => {
+          if (i.user.id !== modalInt.user.id) return false;
+          await i.deferUpdate();
+          return true;
+        },
       });
 
       return i.values[0];
     }
-
 
     config.channels.overrideCodes = await askChannel("override-codes");
     config.channels.modLogs = await askChannel("mod-logs");
@@ -295,4 +294,3 @@ export default {
     });
   },
 };
-
