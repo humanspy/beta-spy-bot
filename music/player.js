@@ -1,13 +1,10 @@
 import { Player } from "discord-player";
 import { EmbedBuilder } from "discord.js";
-import ffmpegPath from "ffmpeg-static";
-import { setFFmpegPath } from "@discord-player/ffmpeg";
 
 const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export function setupPlayer(client) {
   // 🔧 Force discord-player to use bundled FFmpeg
-  setFFmpegPath(ffmpegPath);
 
   const player = new Player(client, {
     ytdlOptions: {
