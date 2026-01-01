@@ -19,7 +19,7 @@ import {
 } from "../staffConfig.js";
 
 import { enableCounting } from "../../counting/storage.js";
-import { hasPermission } from "../index.js";
+import { hasPermission } from "../core.js";
 
 /* ===================== CONSTANTS ===================== */
 
@@ -299,6 +299,7 @@ export default {
     });
   },
 };
+
 
 
 
