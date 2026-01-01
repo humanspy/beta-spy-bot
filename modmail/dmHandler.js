@@ -1,15 +1,21 @@
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from "discord.js";
+
 import { loadModmailConfig } from "./config.js";
 import {
   createTicket,
   getAppealCount,
   incrementAppealCount,
 } from "./ticketManager.js";
+import { loadCases } from "../moderation/core.js";
 
 /*
-DM state machine:
 pending[userId] = {
+  step: "guild" | "type" | "topic",
   guildId,
-  step: "type" | "topic",
   type
 }
 */
@@ -22,30 +28,76 @@ export async function handleModmailDM(message, client) {
   const userId = message.author.id;
   const state = pending.get(userId);
 
-  /* ===================== STEP 0: START ===================== */
+  /* ===================== STEP 0: FIND GUILDS ===================== */
 
   if (!state) {
-    const guild = client.guilds.cache.find(async g => {
-      const cfg = await loadModmailConfig(g.id);
-      return cfg?.enabled;
-    });
+    const rows = [];
+    let buttons = [];
 
-    if (!guild) {
+    for (const guild of client.guilds.cache.values()) {
+      const config = await loadModmailConfig(guild.id);
+      if (!config?.enabled) continue;
+
+      try {
+        const data = await loadCases(guild.id);
+        const hasCase = data.cases?.some(c => c.userId === userId);
+        if (!hasCase) continue;
+
+        buttons.push(
+          new ButtonBuilder()
+            .setCustomId(`modmail_guild:${guild.id}`)
+            .setLabel(guild.name)
+            .setStyle(ButtonStyle.Primary)
+        );
+
+        if (buttons.length === 5) {
+          rows.push(new ActionRowBuilder().addComponents(buttons));
+          buttons = [];
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (buttons.length) {
+      rows.push(new ActionRowBuilder().addComponents(buttons));
+    }
+
+    if (!rows.length) {
       return message.reply(
-        "❌ ModMail is not enabled on any server you share with this bot."
+        "❌ I could not find any servers where you have a moderation case."
       );
     }
 
-    const config = await loadModmailConfig(guild.id);
-    if (!config) return;
+    pending.set(userId, { step: "guild" });
+
+    return message.reply({
+      content:
+        "📩 **ModMail**\n\n" +
+        "I found moderation cases for you in the following servers.\n" +
+        "Please select the server you want to contact:",
+      components: rows,
+    });
+  }
+
+  /* ===================== BUTTON: GUILD SELECT ===================== */
+
+  if (message.interaction?.customId?.startsWith("modmail_guild:")) {
+    const guildId = message.interaction.customId.split(":")[1];
+    const config = await loadModmailConfig(guildId);
+
+    if (!config) {
+      pending.delete(userId);
+      return message.reply("❌ ModMail configuration error.");
+    }
 
     const types = Object.keys(config.ticketTypes)
       .map((t, i) => `${i + 1}️⃣ ${t}`)
       .join("\n");
 
     pending.set(userId, {
-      guildId: guild.id,
       step: "type",
+      guildId,
     });
 
     return message.reply(
@@ -78,7 +130,7 @@ export async function handleModmailDM(message, client) {
       if (used >= config.appealLimit) {
         pending.delete(userId);
         return message.reply(
-          "❌ You have reached the maximum number of ban appeals.\n\n"
+          "❌ You have reached the maximum number of ban appeals."
         );
       }
     }
@@ -111,6 +163,7 @@ export async function handleModmailDM(message, client) {
       userId,
       type: state.type,
       topic,
+      client,
     });
 
     if (state.type === "Ban Appeal") {
