@@ -221,12 +221,17 @@ export default {
         flags: 64,
       });
 
-      const roleInt = await roleMsg.awaitMessageComponent({
-        componentType: 8,
-        time: WIZARD_TIMEOUT,
-      });
+    const roleInt = await roleMsg.awaitMessageComponent({
+      componentType: 8,
+      time: WIZARD_TIMEOUT,
+    });
 
-      const roleId = roleInt.values[0];
+    // ✅ ACKNOWLEDGE IMMEDIATELY
+    await roleInt.deferUpdate();
+
+    const roleId = roleInt.values[0];
+
+
 
       await roleInt.update({
         content: "Select permissions for this role",
@@ -245,6 +250,8 @@ export default {
         componentType: 3,
         time: WIZARD_TIMEOUT,
       });
+
+      await permInt.deferUpdate();
 
       config.staffRoles.push({
         roleId,
@@ -282,8 +289,13 @@ export default {
         time: WIZARD_TIMEOUT,
       });
 
+      await i.deferUpdate();
+
       await i.update({ content: "✅ Saved.", components: [] });
       return i.values[0];
+
+      
+
     };
 
     config.channels.overrideCodes = await askChannel("override-codes");
@@ -299,6 +311,7 @@ export default {
     });
   },
 };
+
 
 
 
