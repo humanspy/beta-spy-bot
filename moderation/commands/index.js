@@ -19,9 +19,10 @@ export async function handleModeration(interaction) {
   if (command === "purge") return purge(interaction);
   if (command === "help") return help(interaction);
   if (command === "generatebancode") return generatebancode(interaction);
-  if (command === "setup") return setup(interaction);
+  if (command === "setup") return execute(interaction);
 
   return false;
 }
+
 
 
