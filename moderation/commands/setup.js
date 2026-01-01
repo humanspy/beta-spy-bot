@@ -7,6 +7,8 @@ import {
   TextInputStyle,
   ActionRowBuilder,
   ChannelType,
+  REST,
+  Routes,
 } from "discord.js";
 
 import {
@@ -17,6 +19,7 @@ import {
 
 import { enableCounting } from "../../counting/storage.js";
 import { hasPermission } from "../core.js";
+import { guildCommands } from "../../guild-commands.js";
 
 /* ===================== CONSTANTS ===================== */
 
@@ -43,8 +46,16 @@ function canModifySetup(interaction) {
   );
 }
 
-async function askMessage(interaction, modalInt, prompt) {
-  await modalInt.followUp({ content: prompt, flags: 64 });
+function stepEmbed(title, description, footer) {
+  return new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(title)
+    .setDescription(description)
+    .setFooter({ text: footer });
+}
+
+async function awaitUserMessage(interaction, modalInt, embed) {
+  await modalInt.followUp({ embeds: [embed], flags: 64 });
 
   const collected = await interaction.channel.awaitMessages({
     max: 1,
@@ -54,49 +65,33 @@ async function askMessage(interaction, modalInt, prompt) {
 
   const msg = collected.first();
   await msg.delete().catch(() => {});
-  return msg.content.trim();
+  return msg;
 }
 
 async function askRole(interaction, modalInt, index, total) {
-  await modalInt.followUp({
-    content:
-      `🛡️ **Staff Role ${index}/${total}**\n` +
-      `Mention the role (example: @Moderator)`,
-    flags: 64,
-  });
+  const embed = stepEmbed(
+    `🛡️ Staff Role ${index}/${total}`,
+    "Please **mention** the staff role.\n\nExample:\n`@Moderator`",
+    "Waiting for role mention…"
+  );
 
-  const collected = await interaction.channel.awaitMessages({
-    max: 1,
-    time: WIZARD_TIMEOUT,
-    filter: m => m.author.id === interaction.user.id,
-  });
-
-  const msg = collected.first();
+  const msg = await awaitUserMessage(interaction, modalInt, embed);
   const role = msg.mentions.roles.first();
-  await msg.delete().catch(() => {});
 
-  if (!role) throw new Error("Invalid role mention");
+  if (!role) throw new Error("Invalid role");
   return role;
 }
 
 async function askPermissions(interaction, modalInt, roleName) {
-  await modalInt.followUp({
-    content:
-      `🔐 **Permissions for ${roleName}**\n\n` +
-      `Send permissions separated by commas.\n` +
+  const embed = stepEmbed(
+    `🔐 Permissions for ${roleName}`,
+    `Send permissions **comma-separated**.\n\n` +
       `Available:\n\`${PERMISSIONS.join(", ")}\`\n\n` +
       `Use \`all\` for full access.`,
-    flags: 64,
-  });
+    "Waiting for permissions…"
+  );
 
-  const collected = await interaction.channel.awaitMessages({
-    max: 1,
-    time: WIZARD_TIMEOUT,
-    filter: m => m.author.id === interaction.user.id,
-  });
-
-  const msg = collected.first();
-  await msg.delete().catch(() => {});
+  const msg = await awaitUserMessage(interaction, modalInt, embed);
 
   const perms = msg.content
     .toLowerCase()
@@ -104,35 +99,41 @@ async function askPermissions(interaction, modalInt, roleName) {
     .map(p => p.trim())
     .filter(Boolean);
 
-  if (!perms.length) throw new Error("No permissions provided");
+  if (!perms.length) throw new Error("No permissions");
   if (!perms.every(p => PERMISSIONS.includes(p)))
     throw new Error("Invalid permissions");
 
   return perms.includes("all") ? "all" : perms;
 }
 
-async function askChannel(interaction, modalInt, label) {
-  await modalInt.followUp({
-    content:
-      `📌 **${label} Channel**\n` +
-      `Mention the channel (example: #mod-logs)`,
-    flags: 64,
-  });
+async function askChannel(interaction, modalInt, label, description) {
+  const embed = stepEmbed(
+    `📌 ${label} Channel`,
+    `${description}\n\nMention the channel.\nExample:\n\`#mod-logs\``,
+    "Waiting for channel mention…"
+  );
 
-  const collected = await interaction.channel.awaitMessages({
-    max: 1,
-    time: WIZARD_TIMEOUT,
-    filter: m => m.author.id === interaction.user.id,
-  });
-
-  const msg = collected.first();
+  const msg = await awaitUserMessage(interaction, modalInt, embed);
   const channel = msg.mentions.channels.first();
-  await msg.delete().catch(() => {});
 
   if (!channel || channel.type !== ChannelType.GuildText)
     throw new Error("Invalid channel");
 
   return channel.id;
+}
+
+async function registerGuildCommands(guildId) {
+  const rest = new REST({ version: "10" }).setToken(
+    process.env.DISCORD_BOT_TOKEN
+  );
+
+  await rest.put(
+    Routes.applicationGuildCommands(
+      process.env.DISCORD_CLIENT_ID,
+      guildId
+    ),
+    { body: guildCommands }
+  );
 }
 
 /* ===================== COMMAND ===================== */
@@ -155,50 +156,39 @@ export default {
     if (sub === "view") {
       if (!existing) {
         return interaction.reply({
-          content: "❌ This server has not been set up yet.",
+          embeds: [
+            stepEmbed(
+              "❌ Setup Not Found",
+              "This server has not been set up yet.",
+              "Run /setup start"
+            ),
+          ],
           flags: 64,
         });
       }
 
       const embed = new EmbedBuilder()
         .setTitle("⚙️ Server Setup")
-        .setColor(0x3498db)
+        .setColor(0x57f287)
         .addFields(
           {
             name: "Staff Roles",
-            value: existing.staffRoles.length
-              ? existing.staffRoles
-                  .sort((a, b) => a.level - b.level)
-                  .map(r =>
-                    `<@&${r.roleId}> — ${
-                      r.permissions === "all"
-                        ? "ALL"
-                        : r.permissions.join(", ")
-                    }`
-                  )
-                  .join("\n")
-              : "None",
+            value: existing.staffRoles
+              .sort((a, b) => a.level - b.level)
+              .map(r =>
+                `<@&${r.roleId}> — ${
+                  r.permissions === "all"
+                    ? "ALL"
+                    : r.permissions.join(", ")
+                }`
+              )
+              .join("\n"),
           },
           {
-            name: "Override Codes",
-            value: existing.channels?.overrideCodes
-              ? `<#${existing.channels.overrideCodes}>`
-              : "Not set",
-            inline: true,
-          },
-          {
-            name: "Mod Logs",
-            value: existing.channels?.modLogs
-              ? `<#${existing.channels.modLogs}>`
-              : "Not set",
-            inline: true,
-          },
-          {
-            name: "Counting",
-            value: existing.channels?.counting
-              ? `<#${existing.channels.counting}>`
-              : "Not set",
-            inline: true,
+            name: "Channels",
+            value: Object.entries(existing.channels)
+              .map(([k, v]) => `${k}: <#${v}>`)
+              .join("\n"),
           }
         );
 
@@ -210,14 +200,26 @@ export default {
     if (sub === "reset") {
       if (!canModifySetup(interaction)) {
         return interaction.reply({
-          content: "❌ Missing permission: setup",
+          embeds: [
+            stepEmbed(
+              "❌ Missing Permission",
+              "You do not have permission to reset setup.",
+              "Permission: setup"
+            ),
+          ],
           flags: 64,
         });
       }
 
       deleteStaffConfig(guildId);
       return interaction.reply({
-        content: "🗑️ Setup reset.",
+        embeds: [
+          stepEmbed(
+            "🗑️ Setup Reset",
+            "Server setup has been successfully reset.",
+            "You may now run /setup start"
+          ),
+        ],
         flags: 64,
       });
     }
@@ -226,14 +228,26 @@ export default {
 
     if (!canModifySetup(interaction)) {
       return interaction.reply({
-        content: "❌ Missing permission: setup",
+        embeds: [
+          stepEmbed(
+            "❌ Missing Permission",
+            "You do not have permission to run setup.",
+            "Permission: setup"
+          ),
+        ],
         flags: 64,
       });
     }
 
     if (existing?.staffRoles?.length) {
       return interaction.reply({
-        content: "⚠️ Setup already exists. Reset first.",
+        embeds: [
+          stepEmbed(
+            "⚠️ Setup Already Exists",
+            "Reset the setup before running it again.",
+            "Use /setup reset"
+          ),
+        ],
         flags: 64,
       });
     }
@@ -269,19 +283,29 @@ export default {
 
     if (Number.isNaN(roleCount) || roleCount < 0 || roleCount > 15) {
       return modalInt.reply({
-        content: "❌ Enter a number between 0 and 15.",
+        embeds: [
+          stepEmbed(
+            "❌ Invalid Input",
+            "Role count must be between 0 and 15.",
+            "Setup aborted"
+          ),
+        ],
         flags: 64,
       });
     }
 
     await modalInt.reply({
-      content: `🧙 Setup started with **${roleCount}** staff roles.`,
+      embeds: [
+        stepEmbed(
+          "🧙 Setup Started",
+          `You selected **${roleCount}** staff roles.`,
+          "Follow the steps below"
+        ),
+      ],
       flags: 64,
     });
 
     const config = { guildId, staffRoles: [], channels: {} };
-
-    /* ===================== ROLE LOOP ===================== */
 
     try {
       for (let i = 0; i < roleCount; i++) {
@@ -302,30 +326,48 @@ export default {
       config.channels.overrideCodes = await askChannel(
         interaction,
         modalInt,
-        "Override Codes"
+        "Override Codes",
+        "This channel receives generated override codes."
       );
       config.channels.modLogs = await askChannel(
         interaction,
         modalInt,
-        "Mod Logs"
+        "Mod Logs",
+        "This channel receives moderation logs."
       );
       config.channels.counting = await askChannel(
         interaction,
         modalInt,
-        "Counting"
+        "Counting",
+        "This channel is used for the counting system."
       );
-    } catch (err) {
+    } catch {
       return modalInt.followUp({
-        content: "❌ Setup cancelled due to invalid input.",
+        embeds: [
+          stepEmbed(
+            "❌ Setup Cancelled",
+            "Invalid input was provided.",
+            "No changes were saved"
+          ),
+        ],
         flags: 64,
       });
     }
 
     await enableCounting(guildId, config.channels.counting);
     saveStaffConfig(guildId, config);
+    await registerGuildCommands(guildId);
 
     await modalInt.followUp({
-      content: "🎉 Setup completed successfully!",
+      embeds: [
+        stepEmbed(
+          "🎉 Setup Complete",
+          "Server setup finished successfully.\n\n" +
+            "✅ Guild commands registered\n" +
+            "⏳ Commands may take a few seconds to appear",
+          "Setup complete"
+        ),
+      ],
       flags: 64,
     });
   },
