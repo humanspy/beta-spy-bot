@@ -8,7 +8,7 @@ export const guildCommands = [
     .setName("modmail")
     .setDescription("Setup Modmail")
     .addSubcommand(sub => sub.setName("setup").setDescription("Run setup"))
-    .addSubcommand(sub => sub.setName("settings").setDescription("Change Settings"))
+    .addSubcommand(sub => sub.setName("settings").setDescription("Change Settings")),
   
   new SlashCommandBuilder()
     .setName("setup")
@@ -244,6 +244,7 @@ export const guildCommands = [
 
 
 ].map(cmd => cmd.toJSON());
+
 
 
 
