@@ -14,10 +14,8 @@ export function setupPlayer(client) {
   });
 
   /* ===================== EXTRACTORS ===================== */
-  // REQUIRED: without this, search + URLs will silently fail
-  player.extractors.loadDefault({
-    defaultSearchEngine: "youtube",
-  });
+  // ✅ Correct for discord-player v6.x
+  player.extractors.loadDefault();
 
   console.log(
     "🎵 Loaded extractors:",
