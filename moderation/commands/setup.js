@@ -7,8 +7,10 @@ import {
   ChannelSelectMenuBuilder,
   ChannelType,
   EmbedBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js";
-import { enableCounting } from "../counting/storage.js";
 
 import {
   saveStaffConfig,
@@ -16,86 +18,54 @@ import {
   deleteStaffConfig,
 } from "../moderation/staffConfig.js";
 
+import { enableCounting } from "../counting/storage.js";
 import { hasPermission } from "../index.js";
 
+/* ===================== CONSTANTS ===================== */
+
 const PERMISSIONS = [
-  { label: "Setup (Manage bot setup)", value: "setup" },
+  { label: "Setup", value: "setup" },
   { label: "Warn", value: "warn" },
   { label: "Timeout", value: "timeout" },
   { label: "Case", value: "case" },
   { label: "Purge", value: "purge" },
-  { label: "Help", value: "help" },
-  { label: "Generate Ban Code", value: "generatebancode" },
   { label: "Kick", value: "kick" },
   { label: "Ban", value: "ban" },
   { label: "Hackban", value: "hackban" },
-  { label: "All Permissions", value: "all" },
+  { label: "All permissions", value: "all" },
 ];
 
-function canModifySetup(interaction) {
-  if (interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-    return true;
-  }
+const WIZARD_TIMEOUT = 5 * 60 * 1000;
 
-  return hasPermission(interaction.member, "setup");
+/* ===================== HELPERS ===================== */
+
+function canModifySetup(interaction) {
+  return (
+    interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
+    hasPermission(interaction.member, "setup")
+  );
 }
+
+/* ===================== COMMAND ===================== */
 
 export default {
   data: new SlashCommandBuilder()
     .setName("setup")
-    .setDescription("Configure staff roles, permissions, and channels")
-
+    .setDescription("Interactive setup wizard")
     .addSubcommand(sub =>
-      sub
-        .setName("start")
-        .setDescription("Initial setup (first time only)")
-        .addIntegerOption(o =>
-          o.setName("staff_roles")
-            .setDescription("How many staff roles? (0–15)")
-            .setMinValue(0)
-            .setMaxValue(15)
-            .setRequired(true)
-        )
+      sub.setName("start").setDescription("Run the setup wizard")
     )
-
     .addSubcommand(sub =>
-      sub
-        .setName("edit")
-        .setDescription("Edit existing setup")
-        .addIntegerOption(o =>
-          o.setName("staff_roles")
-            .setDescription("New number of staff roles (0–15)")
-            .setMinValue(0)
-            .setMaxValue(15)
-            .setRequired(true)
-        )
+      sub.setName("view").setDescription("View current setup")
     )
-
     .addSubcommand(sub =>
-      sub
-        .setName("view")
-        .setDescription("View current setup configuration")
-    )
-
-    .addSubcommand(sub =>
-      sub
-        .setName("reset")
-        .setDescription("Reset all setup configuration")
+      sub.setName("reset").setDescription("Reset setup")
     ),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guild.id;
     const existing = getStaffConfig(guildId);
-
-    /* ===================== PERMISSION GATE ===================== */
-
-    if (sub !== "view" && !canModifySetup(interaction)) {
-      return interaction.reply({
-        content: "❌ You do not have permission to modify the setup.",
-        ephemeral: true,
-      });
-    }
 
     /* ===================== VIEW ===================== */
 
@@ -108,8 +78,8 @@ export default {
       }
 
       const embed = new EmbedBuilder()
+        .setTitle("⚙️ Server Setup")
         .setColor(0x3498db)
-        .setTitle("⚙️ Server Setup Configuration")
         .addFields(
           {
             name: "Staff Roles",
@@ -127,28 +97,27 @@ export default {
               : "None",
           },
           {
-            name: "Override Code Channel",
+            name: "Override Codes",
             value: existing.channels?.overrideCodes
               ? `<#${existing.channels.overrideCodes}>`
               : "Not set",
             inline: true,
           },
           {
-            name: "Log Channel",
+            name: "Mod Logs",
             value: existing.channels?.modLogs
               ? `<#${existing.channels.modLogs}>`
               : "Not set",
             inline: true,
           },
-		  {
-		    name: "Counting Channel",
-		    value: existing.channels?.counting
-		      ? `<#${existing.channels.counting}>`
-		      : "Not set",
-		    inline: true,
-		  }
-        )
-        .setTimestamp();
+          {
+            name: "Counting",
+            value: existing.channels?.counting
+              ? `<#${existing.channels.counting}>`
+              : "Not set",
+            inline: true,
+          }
+        );
 
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
@@ -156,171 +125,177 @@ export default {
     /* ===================== RESET ===================== */
 
     if (sub === "reset") {
-      if (!existing) {
+      if (!canModifySetup(interaction)) {
         return interaction.reply({
-          content: "❌ Nothing to reset. Setup does not exist.",
+          content: "❌ Missing permission: setup",
           ephemeral: true,
         });
       }
 
       deleteStaffConfig(guildId);
-
       return interaction.reply({
-        content: "🗑️ Setup has been reset. You can run `/setup start` again.",
+        content: "🗑️ Setup has been reset.",
         ephemeral: true,
       });
     }
 
-    /* ===================== START / EDIT ===================== */
+    /* ===================== START ===================== */
 
-    const roleCount = interaction.options.getInteger("staff_roles");
-
-    if (sub === "start" && existing?.staffRoles?.length) {
+    if (!canModifySetup(interaction)) {
       return interaction.reply({
-        content: "⚠️ This server is already set up. Use `/setup edit` instead.",
+        content: "❌ Missing permission: setup",
+        ephemeral: true,
+      });
+    }
+
+    if (existing?.staffRoles?.length) {
+      return interaction.reply({
+        content: "⚠️ Setup already exists. Reset it first if needed.",
+        ephemeral: true,
+      });
+    }
+
+    /* ===== Ask for number of staff roles (MODAL) ===== */
+
+    const modal = new ModalBuilder()
+      .setCustomId("setup_role_count")
+      .setTitle("Setup Wizard");
+
+    const roleInput = new TextInputBuilder()
+      .setCustomId("role_count")
+      .setLabel("How many staff roles? (0–15)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("Example: 3")
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(roleInput)
+    );
+
+    await interaction.showModal(modal);
+
+    const modalInt = await interaction.awaitModalSubmit({
+      time: WIZARD_TIMEOUT,
+      filter: i => i.customId === "setup_role_count",
+    });
+
+    const raw = modalInt.fields.getTextInputValue("role_count");
+    const roleCount = Number(raw);
+
+    if (
+      Number.isNaN(roleCount) ||
+      roleCount < 0 ||
+      roleCount > 15
+    ) {
+      return modalInt.reply({
+        content: "❌ Please enter a number between 0 and 15.",
         ephemeral: true,
       });
     }
 
     const config = {
       guildId,
-      channels: {},
       staffRoles: [],
+      channels: {},
     };
 
-    await interaction.reply({
-      content: sub === "edit" ? "🛠️ Editing setup…" : "🔧 Starting setup…",
+    await modalInt.reply({
+      content: `🧙 Setup started with **${roleCount}** staff roles.`,
       ephemeral: true,
     });
 
-    let index = 0;
+    /* ===================== ROLE + PERMISSIONS ===================== */
 
-    const askRole = async () => {
-      await interaction.followUp({
-        content: `Select staff role ${index + 1}/${roleCount}`,
+    let roleIndex = 0;
+
+    while (roleIndex < roleCount) {
+      const roleMsg = await modalInt.followUp({
+        content: `Select staff role ${roleIndex + 1}/${roleCount}`,
         components: [
           new ActionRowBuilder().addComponents(
             new RoleSelectMenuBuilder()
-              .setCustomId("setup_role")
+              .setCustomId("wizard_role")
               .setMaxValues(1)
           ),
         ],
         ephemeral: true,
       });
-    };
 
-    const askPermissions = async roleId => {
-      await interaction.followUp({
+      const roleInt = await roleMsg.awaitMessageComponent({
+        componentType: 8,
+        time: WIZARD_TIMEOUT,
+      });
+
+      const roleId = roleInt.values[0];
+
+      await roleInt.update({
         content: "Select permissions for this role",
         components: [
           new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
-              .setCustomId("setup_perms")
+              .setCustomId("wizard_perms")
               .setMinValues(1)
               .setMaxValues(PERMISSIONS.length)
               .addOptions(PERMISSIONS)
           ),
         ],
+      });
+
+      const permInt = await roleMsg.awaitMessageComponent({
+        componentType: 3,
+        time: WIZARD_TIMEOUT,
+      });
+
+      config.staffRoles.push({
+        roleId,
+        level: roleIndex,
+        permissions: permInt.values.includes("all")
+          ? "all"
+          : permInt.values,
+      });
+
+      await permInt.update({
+        content: "✅ Role saved.",
+        components: [],
+      });
+
+      roleIndex++;
+    }
+
+    /* ===================== CHANNELS ===================== */
+
+    const askChannel = async (label) => {
+      const msg = await modalInt.followUp({
+        content: `Select **${label}** channel`,
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ChannelSelectMenuBuilder()
+              .setCustomId(`wizard_${label}`)
+              .addChannelTypes(ChannelType.GuildText)
+          ),
+        ],
         ephemeral: true,
       });
 
-      interaction.client.once("interactionCreate", async i => {
-        if (!i.isStringSelectMenu()) return;
-        if (i.customId !== "setup_perms") return;
-
-        config.staffRoles.push({
-          roleId,
-          level: index,
-          permissions: i.values.includes("all") ? "all" : i.values,
-        });
-
-        index++;
-        await i.update({ content: "✅ Permissions saved.", components: [] });
-
-        if (index < roleCount) {
-          await askRole();
-        } else {
-          await askChannels();
-        }
+      const i = await msg.awaitMessageComponent({
+        componentType: 8,
+        time: WIZARD_TIMEOUT,
       });
+
+      await i.update({ content: "✅ Saved.", components: [] });
+      return i.values[0];
     };
 
-	const askChannels = async () => {
-	  /* ===== Override Code Channel ===== */
-	  await interaction.followUp({
-	    content: "Select the **Ban Override Code channel**",
-	    components: [
-	      new ActionRowBuilder().addComponents(
-	        new ChannelSelectMenuBuilder()
-	          .setCustomId("setup_override")
-	          .addChannelTypes(ChannelType.GuildText)
-	      ),
-	    ],
-	    ephemeral: true,
-	  });
+    config.channels.overrideCodes = await askChannel("override-codes");
+    config.channels.modLogs = await askChannel("mod-logs");
+    config.channels.counting = await askChannel("counting");
 
-	  interaction.client.once("interactionCreate", async i => {
-	    if (!i.isChannelSelectMenu()) return;
-	    if (i.customId !== "setup_override") return;
+    await enableCounting(guildId, config.channels.counting);
+    saveStaffConfig(guildId, config);
 
-	    config.channels.overrideCodes = i.values[0];
-	    await i.update({ content: "✅ Override channel saved.", components: [] });
-
-	    /* ===== Moderation Log Channel ===== */
-	    await interaction.followUp({
-	      content: "Select the **Moderation Log channel**",
-	      components: [
-	        new ActionRowBuilder().addComponents(
-	          new ChannelSelectMenuBuilder()
-	            .setCustomId("setup_logs")
-	            .addChannelTypes(ChannelType.GuildText)
-	        ),
-	      ],
-	      ephemeral: true,
-	    });
-
-	    interaction.client.once("interactionCreate", async i2 => {
-	      if (!i2.isChannelSelectMenu()) return;
-	      if (i2.customId !== "setup_logs") return;
-
-	      config.channels.modLogs = i2.values[0];
-	      await i2.update({ content: "✅ Log channel saved.", components: [] });
-
-	      /* ===== Counting Channel ===== */
-	      await interaction.followUp({
-	        content: "Select the **Counting channel**",
-	        components: [
-	          new ActionRowBuilder().addComponents(
-	            new ChannelSelectMenuBuilder()
-	              .setCustomId("setup_counting")
-	              .addChannelTypes(ChannelType.GuildText)
-	          ),
-	        ],
-	        ephemeral: true,
-	      });
-
-	      interaction.client.once("interactionCreate", async i3 => {
-	        if (!i3.isChannelSelectMenu()) return;
-	        if (i3.customId !== "setup_counting") return;
-
-	        const countingChannelId = i3.values[0];
-	        config.channels.counting = countingChannelId;
-
-	        // 🔓 ACTIVATE COUNTING (hard gate)
-	        await enableCounting(guildId, countingChannelId);
-
-	        saveStaffConfig(guildId, config);
-
-	        await i3.update({
-	          content:
-	            sub === "edit"
-	              ? "✅ Setup updated successfully. Counting is active."
-	              : "✅ Setup completed successfully. Counting is active.",
-	          components: [],
-	        });
-	      });
-	    });
-	  });
-	};
-
-
+    await modalInt.followUp({
+      content: "🎉 Setup completed successfully!",
+      ephemeral: true,
+    });
+  },
+};
