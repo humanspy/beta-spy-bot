@@ -6,7 +6,7 @@ export default async function play(interaction) {
   if (!voiceChannel) {
     return interaction.reply({
       content: "❌ You must be in a voice channel.",
-      ephemeral: true
+      flags: 64,
     });
   }
 
@@ -46,3 +46,4 @@ export default async function play(interaction) {
     return interaction.editReply("❌ Playback error.");
   }
 }
+
