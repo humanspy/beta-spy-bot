@@ -1,12 +1,27 @@
 import { Player } from "discord-player";
 import { EmbedBuilder } from "discord.js";
+import playdl from "play-dl";
 
 const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
-export function setupPlayer(client) {
+export async function setupPlayer(client) {
+  /* ===================== PLAY-DL SETUP ===================== */
+  // This makes discord-player prefer play-dl over ytdl-core
+  if (process.env.YT_COOKIE) {
+    await playdl.setToken({
+      youtube: {
+        cookie: process.env.YT_COOKIE,
+      },
+    });
+    console.log("🍪 YouTube cookie loaded for play-dl");
+  } else {
+    console.log("ℹ️ No YT cookie set (play-dl still works)");
+  }
+
   /* ===================== PLAYER INIT ===================== */
 
   const player = new Player(client, {
+    useLegacyFFmpeg: false,
     ytdlOptions: {
       quality: "highestaudio",
       filter: "audioonly",
@@ -15,7 +30,7 @@ export function setupPlayer(client) {
   });
 
   /* ===================== EXTRACTORS ===================== */
-  // REQUIRED for search + URLs
+  // Correct for discord-player v6.x
   player.extractors.loadDefault();
 
   console.log(
@@ -52,7 +67,6 @@ export function setupPlayer(client) {
 
   /* ===================== PLAYLIST EVENTS ===================== */
 
-  // Fired when a playlist is added to the queue
   player.events.on("playlistAdd", (queue, playlist) => {
     const channel = queue.metadata;
     if (!channel) return;
@@ -76,14 +90,15 @@ export function setupPlayer(client) {
     channel.send({ embeds: [embed] }).catch(() => {});
   });
 
-  // Fired when a playlist starts playing
   player.events.on("playlistStart", (queue, playlist) => {
     const channel = queue.metadata;
     if (!channel) return;
 
-    channel.send(
-      `▶️ **Started playlist:** **${playlist.title}** (${playlist.tracks.length} tracks)`
-    ).catch(() => {});
+    channel
+      .send(
+        `▶️ **Started playlist:** **${playlist.title}** (${playlist.tracks.length} tracks)`
+      )
+      .catch(() => {});
   });
 
   /* ===================== NOW PLAYING ===================== */
