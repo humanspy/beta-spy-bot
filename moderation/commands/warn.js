@@ -12,7 +12,7 @@ export default async function warn(interaction, sub) {
   if (sub === "add") {
     if (!hasPermission(interaction.member, "warn")) {
       const role = getHighestStaffRole(interaction.member);
-      return interaction.reply({ content: `❌ ${role?.name}`, ephemeral: true });
+      return interaction.reply({ content: `❌ ${role?.name}`, flags: 64, });
     }
 
     const user = interaction.options.getUser("user");
@@ -37,7 +37,7 @@ export default async function warn(interaction, sub) {
       .setTimestamp();
 
     await sendLog(interaction.guild, embed);
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.reply({ embeds: [embed], flags: 64, });
   }
 
   if (sub === "remove") {
@@ -46,7 +46,7 @@ export default async function warn(interaction, sub) {
     const filtered = warnings.filter(w => w.userId !== user.id);
 
     if (filtered.length === warnings.length) {
-      return interaction.reply({ content: "❌ No warnings.", ephemeral: true });
+      return interaction.reply({ content: "❌ No warnings.", flags: 64, });
     }
 
     await saveWarnings(interaction.guild.id, filtered);
@@ -56,4 +56,5 @@ export default async function warn(interaction, sub) {
     });
   }
 }
+
 
