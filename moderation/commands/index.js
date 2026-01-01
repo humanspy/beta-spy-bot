@@ -5,7 +5,7 @@ import caseCmd from "./case.js";
 import purge from "./purge.js";
 import help from "./help.js";
 import generatebancode from "./generatebancode.js";
-import { execute as setup } from "./setup.js";
+import setup from "./setup.js";
 
 
 export async function handleModeration(interaction) {
@@ -23,4 +23,5 @@ export async function handleModeration(interaction) {
 
   return false;
 }
+
 
