@@ -6,7 +6,7 @@ export default async function current(interaction) {
   if (!queue || !queue.currentTrack) {
     return interaction.reply({
       content: "❌ Nothing is playing.",
-      ephemeral: true
+      flags: 64,
     });
   }
 
@@ -20,3 +20,4 @@ export default async function current(interaction) {
 
   return interaction.reply({ embeds: [embed] });
 }
+
