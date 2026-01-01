@@ -5,6 +5,10 @@ import bcrypt from "bcrypt";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
 import "./web/server.js";
+import { execSync } from "child_process";
+
+console.log(execSync("which ffmpeg").toString());
+console.log(execSync("ffmpeg -version").toString());
 
 
 import {
