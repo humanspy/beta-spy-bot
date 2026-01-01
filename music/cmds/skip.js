@@ -4,7 +4,7 @@ export default async function skip(interaction) {
   if (!queue || !queue.currentTrack) {
     return interaction.reply({
       content: "❌ Nothing is playing.",
-      ephemeral: true
+      flags: 64,
     });
   }
 
@@ -17,7 +17,8 @@ export default async function skip(interaction) {
     console.error(err);
     return interaction.reply({
       content: "❌ Failed to skip the track.",
-      ephemeral: true
+      flags: 64,
     });
   }
 }
+
