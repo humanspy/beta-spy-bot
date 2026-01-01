@@ -18,7 +18,7 @@ import {
   deleteStaffConfig,
 } from "../staffConfig.js";
 
-import { enableCounting } from ".../counting/storage.js";
+import { enableCounting } from "../../counting/storage.js";
 import { hasPermission } from "../index.js";
 
 /* ===================== CONSTANTS ===================== */
@@ -299,5 +299,6 @@ export default {
     });
   },
 };
+
 
 
