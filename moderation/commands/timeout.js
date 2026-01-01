@@ -15,7 +15,7 @@ export default async function timeout(interaction, sub) {
       const role = getHighestStaffRole(interaction.member);
       return interaction.reply({
         content: `❌ Role **${role?.name ?? "Unknown"}** has no permission.`,
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -28,7 +28,7 @@ export default async function timeout(interaction, sub) {
     if (!durationMinutes || durationMinutes <= 0) {
       return interaction.reply({
         content: "❌ Invalid duration.",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -51,7 +51,7 @@ export default async function timeout(interaction, sub) {
       content:
         `⏱️ **${targetUser.tag}** timed out for ` +
         `**${getDurationLabel(durationMinutes)}** (Case #${caseNumber})`,
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -61,7 +61,7 @@ export default async function timeout(interaction, sub) {
       const role = getHighestStaffRole(interaction.member);
       return interaction.reply({
         content: `❌ Role **${role?.name ?? "Unknown"}** has no permission.`,
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -74,7 +74,8 @@ export default async function timeout(interaction, sub) {
 
     return interaction.reply({
       content: `✅ Timeout removed for **${targetUser.tag}**`,
-      ephemeral: true,
+      flags: 64,
     });
   }
 }
+
