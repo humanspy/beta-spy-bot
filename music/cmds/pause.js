@@ -4,10 +4,11 @@ export default async function pause(interaction) {
   if (!queue || !queue.isPlaying()) {
     return interaction.reply({
       content: "❌ Nothing is playing.",
-      ephemeral: true
+      flags: 64,
     });
   }
 
   queue.node.pause();
   return interaction.reply("⏸️ Music paused.");
 }
+
