@@ -15,6 +15,7 @@ export default async function purge(interaction) {
 
   return interaction.reply({
     content: `🗑️ Deleted **${deleted.size}** message(s)`,
-    ephemeral: true,
+    flags: 64,
   });
 }
+
