@@ -119,7 +119,7 @@ export default {
           }
         );
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.reply({ embeds: [embed], flags: 64, });
     }
 
     /* ===================== RESET ===================== */
@@ -225,24 +225,19 @@ export default {
     const roleInt = await roleMsg.awaitMessageComponent({
       componentType: 8,
       time: WIZARD_TIMEOUT,
+      filter: i => i.user.id === interaction.user.id,
     });
 
-    // ✅ ACKNOWLEDGE IMMEDIATELY
-    await roleInt.deferUpdate();
-
     const roleId = roleInt.values[0];
-
-
-
-      await roleInt.update({
-        content: "Select permissions for this role",
-        components: [
-          new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-              .setCustomId("wizard_perms")
-              .setMinValues(1)
-              .setMaxValues(PERMISSIONS.length)
-              .addOptions(PERMISSIONS)
+    await roleInt.update({
+       content: "Select permissions for this role",
+       components: [
+         new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId("wizard_perms")
+            .setMinValues(1)
+            .setMaxValues(PERMISSIONS.length)
+            .addOptions(PERMISSIONS)
           ),
         ],
       });
@@ -314,6 +309,7 @@ export default {
     });
   },
 };
+
 
 
 
