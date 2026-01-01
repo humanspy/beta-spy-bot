@@ -208,13 +208,15 @@ export default {
         fetchReply: true, // 🔴 REQUIRED
       });
 
-      const roleInt = await roleMsg.awaitMessageComponent({
-        componentType: 8,
-        time: WIZARD_TIMEOUT,
-        filter: x => x.user.id === interaction.user.id,
-      });
-
-      await roleInt.deferUpdate();
+     const roleInt = await roleMsg.awaitMessageComponent({
+      componentType: 8,
+      time: WIZARD_TIMEOUT,
+      filter: i => {
+        i.deferUpdate(); // 🔴 ACK IMMEDIATELY
+        return i.user.id === interaction.user.id;
+      },
+     });
+      
       const roleId = roleInt.values[0];
 
       const permMsg = await modalInt.followUp({
@@ -235,10 +237,11 @@ export default {
       const permInt = await permMsg.awaitMessageComponent({
         componentType: 3,
         time: WIZARD_TIMEOUT,
-        filter: x => x.user.id === interaction.user.id,
+        filter: i => {
+          i.deferUpdate(); // 🔴 CRITICAL
+          return i.user.id === interaction.user.id;
+        },
       });
-
-      await permInt.deferUpdate();
 
       config.staffRoles.push({
         roleId,
@@ -251,7 +254,7 @@ export default {
 
     /* ===================== CHANNELS ===================== */
 
-    async function askChannel(label) {
+   async function askChannel(label) {
       const msg = await modalInt.followUp({
         content: `Select **${label}** channel`,
         components: [
@@ -262,18 +265,22 @@ export default {
           ),
         ],
         flags: 64,
-        fetchReply: true, // 🔴 REQUIRED
+        fetchReply: true,
       });
 
       const i = await msg.awaitMessageComponent({
-        componentType: 8,
+        componentType: 8, // ChannelSelect
         time: WIZARD_TIMEOUT,
-        filter: x => x.user.id === interaction.user.id,
+        filter: interaction => {
+          // 🔴 ACKNOWLEDGE IMMEDIATELY
+          interaction.deferUpdate();
+          return interaction.user.id === modalInt.user.id;
+      },
       });
 
-      await i.deferUpdate();
       return i.values[0];
     }
+
 
     config.channels.overrideCodes = await askChannel("override-codes");
     config.channels.modLogs = await askChannel("mod-logs");
@@ -288,3 +295,4 @@ export default {
     });
   },
 };
+
