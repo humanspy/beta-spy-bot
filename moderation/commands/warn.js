@@ -52,7 +52,8 @@ export default async function warn(interaction, sub) {
     await saveWarnings(interaction.guild.id, filtered);
     return interaction.reply({
       content: `✅ Cleared warnings for ${user.tag}`,
-      ephemeral: true,
+      flags: 64,
     });
   }
 }
+
