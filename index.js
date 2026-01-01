@@ -53,7 +53,7 @@ const client = new Client({
   ],
 });
 
-client.once("ready", async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.user.setPresence({
     activities: [{ name: "DM to open Ticket", type: 2 }],
@@ -64,7 +64,6 @@ client.once("ready", async () => {
     await organizeCasesToFolder(await loadAllCases());
   } catch {}
 });
-
 /* ===================== INTERACTIONS ===================== */
 import { handleLevelRoleComponents } from "./profile/level/core.js";
 import { handleModmailCore } from "./modmail/core.js";
