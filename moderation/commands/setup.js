@@ -52,15 +52,9 @@ export default {
   data: new SlashCommandBuilder()
     .setName("setup")
     .setDescription("Interactive setup wizard")
-    .addSubcommand(sub =>
-      sub.setName("start").setDescription("Run the setup wizard")
-    )
-    .addSubcommand(sub =>
-      sub.setName("view").setDescription("View current setup")
-    )
-    .addSubcommand(sub =>
-      sub.setName("reset").setDescription("Reset setup")
-    ),
+    .addSubcommand(sub => sub.setName("start").setDescription("Run setup"))
+    .addSubcommand(sub => sub.setName("view").setDescription("View setup"))
+    .addSubcommand(sub => sub.setName("reset").setDescription("Reset setup")),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand(false) ?? "start";
@@ -134,7 +128,7 @@ export default {
 
       deleteStaffConfig(guildId);
       return interaction.reply({
-        content: "🗑️ Setup has been reset.",
+        content: "🗑️ Setup reset.",
         flags: 64,
       });
     }
@@ -150,7 +144,7 @@ export default {
 
     if (existing?.staffRoles?.length) {
       return interaction.reply({
-        content: "⚠️ Setup already exists. Reset it first.",
+        content: "⚠️ Setup already exists. Reset first.",
         flags: 64,
       });
     }
@@ -211,6 +205,7 @@ export default {
           ),
         ],
         flags: 64,
+        fetchReply: true, // 🔴 REQUIRED
       });
 
       const roleInt = await roleMsg.awaitMessageComponent({
@@ -220,7 +215,6 @@ export default {
       });
 
       await roleInt.deferUpdate();
-
       const roleId = roleInt.values[0];
 
       const permMsg = await modalInt.followUp({
@@ -235,6 +229,7 @@ export default {
           ),
         ],
         flags: 64,
+        fetchReply: true, // 🔴 REQUIRED
       });
 
       const permInt = await permMsg.awaitMessageComponent({
@@ -267,6 +262,7 @@ export default {
           ),
         ],
         flags: 64,
+        fetchReply: true, // 🔴 REQUIRED
       });
 
       const i = await msg.awaitMessageComponent({
