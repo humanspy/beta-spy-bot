@@ -6,7 +6,7 @@ export default async function modmailSettings(interaction) {
   if (!config) {
     return interaction.reply({
       content: "❌ ModMail is not set up yet. Use `/modmail setup` first.",
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -15,6 +15,7 @@ export default async function modmailSettings(interaction) {
 
   await interaction.reply({
     content: `🔧 Anonymous staff mode is now **${config.anonymousStaff ? "ON" : "OFF"}**`,
-    ephemeral: true,
+    flags: 64,
   });
 }
+
