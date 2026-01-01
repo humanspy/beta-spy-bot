@@ -14,6 +14,7 @@ import {
   Client,
   GatewayIntentBits,
   EmbedBuilder,
+  Events,
 } from "discord.js";
 
 import { setupPlayer } from "./music/player.js";
