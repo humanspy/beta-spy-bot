@@ -4,10 +4,11 @@ export default async function stop(interaction) {
   if (!queue) {
     return interaction.reply({
       content: "❌ No active queue.",
-      ephemeral: true
+      flags: 64,
     });
   }
 
   queue.delete();
   return interaction.reply("⏹️ Music stopped and left the voice channel.");
 }
+
