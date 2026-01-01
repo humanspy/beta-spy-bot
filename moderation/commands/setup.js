@@ -1,15 +1,12 @@
 import {
   SlashCommandBuilder,
   PermissionFlagsBits,
-  ActionRowBuilder,
-  RoleSelectMenuBuilder,
-  StringSelectMenuBuilder,
-  ChannelSelectMenuBuilder,
-  ChannelType,
   EmbedBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  ActionRowBuilder,
+  ChannelType,
 } from "discord.js";
 
 import {
@@ -24,15 +21,15 @@ import { hasPermission } from "../core.js";
 /* ===================== CONSTANTS ===================== */
 
 const PERMISSIONS = [
-  { label: "Setup", value: "setup" },
-  { label: "Warn", value: "warn" },
-  { label: "Timeout", value: "timeout" },
-  { label: "Case", value: "case" },
-  { label: "Purge", value: "purge" },
-  { label: "Kick", value: "kick" },
-  { label: "Ban", value: "ban" },
-  { label: "Hackban", value: "hackban" },
-  { label: "All permissions", value: "all" },
+  "setup",
+  "warn",
+  "timeout",
+  "case",
+  "purge",
+  "kick",
+  "ban",
+  "hackban",
+  "all",
 ];
 
 const WIZARD_TIMEOUT = 5 * 60 * 1000;
@@ -44,6 +41,98 @@ function canModifySetup(interaction) {
     interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
     hasPermission(interaction.member, "setup")
   );
+}
+
+async function askMessage(interaction, modalInt, prompt) {
+  await modalInt.followUp({ content: prompt, flags: 64 });
+
+  const collected = await interaction.channel.awaitMessages({
+    max: 1,
+    time: WIZARD_TIMEOUT,
+    filter: m => m.author.id === interaction.user.id,
+  });
+
+  const msg = collected.first();
+  await msg.delete().catch(() => {});
+  return msg.content.trim();
+}
+
+async function askRole(interaction, modalInt, index, total) {
+  await modalInt.followUp({
+    content:
+      `🛡️ **Staff Role ${index}/${total}**\n` +
+      `Mention the role (example: @Moderator)`,
+    flags: 64,
+  });
+
+  const collected = await interaction.channel.awaitMessages({
+    max: 1,
+    time: WIZARD_TIMEOUT,
+    filter: m => m.author.id === interaction.user.id,
+  });
+
+  const msg = collected.first();
+  const role = msg.mentions.roles.first();
+  await msg.delete().catch(() => {});
+
+  if (!role) throw new Error("Invalid role mention");
+  return role;
+}
+
+async function askPermissions(interaction, modalInt, roleName) {
+  await modalInt.followUp({
+    content:
+      `🔐 **Permissions for ${roleName}**\n\n` +
+      `Send permissions separated by commas.\n` +
+      `Available:\n\`${PERMISSIONS.join(", ")}\`\n\n` +
+      `Use \`all\` for full access.`,
+    flags: 64,
+  });
+
+  const collected = await interaction.channel.awaitMessages({
+    max: 1,
+    time: WIZARD_TIMEOUT,
+    filter: m => m.author.id === interaction.user.id,
+  });
+
+  const msg = collected.first();
+  await msg.delete().catch(() => {});
+
+  const perms = msg.content
+    .toLowerCase()
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  if (!perms.length) throw new Error("No permissions provided");
+  if (!perms.every(p => PERMISSIONS.includes(p)))
+    throw new Error("Invalid permissions");
+
+  return perms.includes("all") ? "all" : perms;
+}
+
+async function askChannel(interaction, modalInt, label) {
+  await modalInt.followUp({
+    content:
+      `📌 **${label} Channel**\n` +
+      `Mention the channel (example: #mod-logs)`,
+    flags: 64,
+  });
+
+  const collected = await interaction.channel.awaitMessages({
+    max: 1,
+    time: WIZARD_TIMEOUT,
+    filter: m => m.author.id === interaction.user.id,
+  });
+
+  const msg = collected.first();
+  const channel = msg.mentions.channels.first();
+  await msg.delete().catch(() => {});
+
+  if (!channel || channel.type !== ChannelType.GuildText)
+    throw new Error("Invalid channel");
+
+  return channel.id;
 }
 
 /* ===================== COMMAND ===================== */
@@ -194,96 +283,43 @@ export default {
 
     /* ===================== ROLE LOOP ===================== */
 
-    for (let i = 0; i < roleCount; i++) {
-      const roleMsg = await modalInt.followUp({
-        content: `Select staff role ${i + 1}/${roleCount}`,
-        components: [
-          new ActionRowBuilder().addComponents(
-            new RoleSelectMenuBuilder()
-              .setCustomId("wizard_role")
-              .setMaxValues(1)
-          ),
-        ],
+    try {
+      for (let i = 0; i < roleCount; i++) {
+        const role = await askRole(interaction, modalInt, i + 1, roleCount);
+        const perms = await askPermissions(
+          interaction,
+          modalInt,
+          role.name
+        );
+
+        config.staffRoles.push({
+          roleId: role.id,
+          level: i,
+          permissions: perms,
+        });
+      }
+
+      config.channels.overrideCodes = await askChannel(
+        interaction,
+        modalInt,
+        "Override Codes"
+      );
+      config.channels.modLogs = await askChannel(
+        interaction,
+        modalInt,
+        "Mod Logs"
+      );
+      config.channels.counting = await askChannel(
+        interaction,
+        modalInt,
+        "Counting"
+      );
+    } catch (err) {
+      return modalInt.followUp({
+        content: "❌ Setup cancelled due to invalid input.",
         flags: 64,
-        fetchReply: true,
-      });
-
-      const roleInt = await roleMsg.awaitMessageComponent({
-        componentType: 8,
-        time: WIZARD_TIMEOUT,
-        filter: async i => {
-          if (i.user.id !== interaction.user.id) return false;
-          await i.deferUpdate();
-          return true;
-        },
-      });
-
-      const permMsg = await modalInt.followUp({
-        content: "Select permissions for this role",
-        components: [
-          new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-              .setCustomId("wizard_perms")
-              .setMinValues(1)
-              .setMaxValues(PERMISSIONS.length)
-              .addOptions(PERMISSIONS)
-          ),
-        ],
-        flags: 64,
-        fetchReply: true,
-      });
-
-      const permInt = await permMsg.awaitMessageComponent({
-        componentType: 3,
-        time: WIZARD_TIMEOUT,
-        filter: async i => {
-          if (i.user.id !== interaction.user.id) return false;
-          await i.deferUpdate();
-          return true;
-        },
-      });
-
-      config.staffRoles.push({
-        roleId: roleInt.values[0],
-        level: i,
-        permissions: permInt.values.includes("all")
-          ? "all"
-          : permInt.values,
       });
     }
-
-    /* ===================== CHANNELS ===================== */
-
-    async function askChannel(label) {
-      const msg = await modalInt.followUp({
-        content: `Select **${label}** channel`,
-        components: [
-          new ActionRowBuilder().addComponents(
-            new ChannelSelectMenuBuilder()
-              .setCustomId(`wizard_${label}`)
-              .addChannelTypes(ChannelType.GuildText)
-          ),
-        ],
-        flags: 64,
-        fetchReply: true,
-      });
-
-      const i = await msg.awaitMessageComponent({
-        componentType: 8,
-        time: WIZARD_TIMEOUT,
-        filter: async i => {
-          if (i.user.id !== modalInt.user.id) return false;
-          await i.deferUpdate();
-          return true;
-        },
-      });
-
-      return i.values[0];
-    }
-
-    config.channels.overrideCodes = await askChannel("override-codes");
-    config.channels.modLogs = await askChannel("mod-logs");
-    config.channels.counting = await askChannel("counting");
 
     await enableCounting(guildId, config.channels.counting);
     saveStaffConfig(guildId, config);
