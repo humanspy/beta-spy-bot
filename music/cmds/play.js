@@ -26,6 +26,8 @@ export default async function play(interaction) {
       await queue.connect(voiceChannel);
     }
 
+    await queue.node.play();
+    
     let result;
 
     /* ===================== FAST PATH ===================== */
@@ -63,3 +65,4 @@ export default async function play(interaction) {
     return interaction.editReply("❌ Playback error.");
   }
 }
+
