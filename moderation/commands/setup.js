@@ -63,7 +63,7 @@ export default {
     ),
 
   async execute(interaction) {
-    const sub = interaction.options.getSubcommand();
+    const sub = interaction.options.getSubcommand(false) ?? "start";
     const guildId = interaction.guild.id;
     const existing = getStaffConfig(guildId);
 
@@ -299,6 +299,7 @@ export default {
     });
   },
 };
+
 
 
 
