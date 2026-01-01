@@ -74,8 +74,11 @@ export async function createTicket({
   /* ===================== FORUM THREAD ===================== */
 
   const thread = await forum.threads.create({
-    name: `${type} — ${userId}`,
-    message: { embeds: [embed] },
+    name: `${type} -- ${userId}`,
+    message: {
+      content: "@everyone",
+      embeds: [embed],
+    },
     appliedTags,
   });
 
