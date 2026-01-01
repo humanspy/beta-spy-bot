@@ -9,12 +9,13 @@ export function setupPlayer(client) {
   const player = new Player(client, {
     ytdlOptions: {
       quality: "highestaudio",
+      filter: "audioonly",
       highWaterMark: 1 << 25,
     },
   });
 
   /* ===================== EXTRACTORS ===================== */
-  // ✅ Correct for discord-player v6.x
+  // REQUIRED for search + URLs
   player.extractors.loadDefault();
 
   console.log(
@@ -49,7 +50,43 @@ export function setupPlayer(client) {
     }, IDLE_TIMEOUT);
   });
 
-  /* ===================== NOW PLAYING EMBED ===================== */
+  /* ===================== PLAYLIST EVENTS ===================== */
+
+  // Fired when a playlist is added to the queue
+  player.events.on("playlistAdd", (queue, playlist) => {
+    const channel = queue.metadata;
+    if (!channel) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(0x1db954)
+      .setTitle("📃 Playlist Added")
+      .setDescription(`**${playlist.title}**`)
+      .addFields(
+        { name: "Tracks", value: `${playlist.tracks.length}`, inline: true },
+        { name: "Source", value: playlist.source || "Unknown", inline: true },
+        {
+          name: "Requested by",
+          value: playlist.requestedBy?.tag || "Unknown",
+          inline: true,
+        }
+      )
+      .setThumbnail(playlist.thumbnail)
+      .setTimestamp();
+
+    channel.send({ embeds: [embed] }).catch(() => {});
+  });
+
+  // Fired when a playlist starts playing
+  player.events.on("playlistStart", (queue, playlist) => {
+    const channel = queue.metadata;
+    if (!channel) return;
+
+    channel.send(
+      `▶️ **Started playlist:** **${playlist.title}** (${playlist.tracks.length} tracks)`
+    ).catch(() => {});
+  });
+
+  /* ===================== NOW PLAYING ===================== */
 
   player.events.on("playerStart", (queue, track) => {
     const channel = queue.metadata;
