@@ -119,7 +119,7 @@ export default {
           }
         );
 
-      return interaction.reply({ embeds: [embed], flags: 64, });
+      return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
     /* ===================== RESET ===================== */
@@ -150,67 +150,59 @@ export default {
 
     if (existing?.staffRoles?.length) {
       return interaction.reply({
-        content: "⚠️ Setup already exists. Reset it first if needed.",
+        content: "⚠️ Setup already exists. Reset it first.",
         flags: 64,
       });
     }
 
-    /* ===== Ask for number of staff roles (MODAL) ===== */
+    /* ===== ROLE COUNT MODAL ===== */
 
     const modal = new ModalBuilder()
       .setCustomId("setup_role_count")
       .setTitle("Setup Wizard");
 
-    const roleInput = new TextInputBuilder()
-      .setCustomId("role_count")
-      .setLabel("How many staff roles? (0–15)")
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder("Example: 3")
-      .setRequired(true);
-
     modal.addComponents(
-      new ActionRowBuilder().addComponents(roleInput)
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("role_count")
+          .setLabel("How many staff roles? (0–15)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
 
     await interaction.showModal(modal);
 
     const modalInt = await interaction.awaitModalSubmit({
       time: WIZARD_TIMEOUT,
-      filter: i => i.customId === "setup_role_count",
+      filter: i =>
+        i.customId === "setup_role_count" &&
+        i.user.id === interaction.user.id,
     });
 
-    const raw = modalInt.fields.getTextInputValue("role_count");
-    const roleCount = Number(raw);
+    const roleCount = Number(
+      modalInt.fields.getTextInputValue("role_count")
+    );
 
-    if (
-      Number.isNaN(roleCount) ||
-      roleCount < 0 ||
-      roleCount > 15
-    ) {
+    if (Number.isNaN(roleCount) || roleCount < 0 || roleCount > 15) {
       return modalInt.reply({
-        content: "❌ Please enter a number between 0 and 15.",
+        content: "❌ Enter a number between 0 and 15.",
         flags: 64,
       });
     }
-
-    const config = {
-      guildId,
-      staffRoles: [],
-      channels: {},
-    };
 
     await modalInt.reply({
       content: `🧙 Setup started with **${roleCount}** staff roles.`,
       flags: 64,
     });
 
-    /* ===================== ROLE + PERMISSIONS ===================== */
+    const config = { guildId, staffRoles: [], channels: {} };
 
-    let roleIndex = 0;
+    /* ===================== ROLE LOOP ===================== */
 
-    while (roleIndex < roleCount) {
+    for (let i = 0; i < roleCount; i++) {
       const roleMsg = await modalInt.followUp({
-        content: `Select staff role ${roleIndex + 1}/${roleCount}`,
+        content: `Select staff role ${i + 1}/${roleCount}`,
         components: [
           new ActionRowBuilder().addComponents(
             new RoleSelectMenuBuilder()
@@ -221,54 +213,50 @@ export default {
         flags: 64,
       });
 
-
-    const roleInt = await roleMsg.awaitMessageComponent({
-      componentType: 8,
-      time: WIZARD_TIMEOUT,
-      filter: i => i.user.id === interaction.user.id,
-    });
-
-    const roleId = roleInt.values[0];
-    await roleInt.update({
-       content: "Select permissions for this role",
-       components: [
-         new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId("wizard_perms")
-            .setMinValues(1)
-            .setMaxValues(PERMISSIONS.length)
-            .addOptions(PERMISSIONS)
-          ),
-        ],
+      const roleInt = await roleMsg.awaitMessageComponent({
+        componentType: 8,
+        time: WIZARD_TIMEOUT,
+        filter: x => x.user.id === interaction.user.id,
       });
 
-      const permInt = await roleMsg.awaitMessageComponent({
+      await roleInt.deferUpdate();
+
+      const roleId = roleInt.values[0];
+
+      const permMsg = await modalInt.followUp({
+        content: "Select permissions for this role",
+        components: [
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId("wizard_perms")
+              .setMinValues(1)
+              .setMaxValues(PERMISSIONS.length)
+              .addOptions(PERMISSIONS)
+          ),
+        ],
+        flags: 64,
+      });
+
+      const permInt = await permMsg.awaitMessageComponent({
         componentType: 3,
         time: WIZARD_TIMEOUT,
-        filter: i => i.user.id === interaction.user.id,
+        filter: x => x.user.id === interaction.user.id,
       });
 
       await permInt.deferUpdate();
 
       config.staffRoles.push({
         roleId,
-        level: roleIndex,
+        level: i,
         permissions: permInt.values.includes("all")
           ? "all"
           : permInt.values,
       });
-
-      await permInt.update({
-        content: "✅ Role saved.",
-        components: [],
-      });
-
-      roleIndex++;
     }
 
     /* ===================== CHANNELS ===================== */
 
-    const askChannel = async (label) => {
+    async function askChannel(label) {
       const msg = await modalInt.followUp({
         content: `Select **${label}** channel`,
         components: [
@@ -284,17 +272,12 @@ export default {
       const i = await msg.awaitMessageComponent({
         componentType: 8,
         time: WIZARD_TIMEOUT,
-        filter: i => i.user.id === interaction.user.id,
+        filter: x => x.user.id === interaction.user.id,
       });
 
       await i.deferUpdate();
-
-      await i.update({ content: "✅ Saved.", components: [] });
       return i.values[0];
-
-      
-
-    };
+    }
 
     config.channels.overrideCodes = await askChannel("override-codes");
     config.channels.modLogs = await askChannel("mod-logs");
@@ -309,13 +292,3 @@ export default {
     });
   },
 };
-
-
-
-
-
-
-
-
-
-
