@@ -16,7 +16,7 @@ import {
   saveStaffConfig,
   getStaffConfig,
   deleteStaffConfig,
-} from "../moderation/staffConfig.js";
+} from "../staffConfig.js";
 
 import { enableCounting } from "../counting/storage.js";
 import { hasPermission } from "../index.js";
@@ -299,3 +299,4 @@ export default {
     });
   },
 };
+
