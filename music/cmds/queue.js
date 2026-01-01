@@ -6,7 +6,7 @@ export default async function queueCmd(interaction) {
   if (!queue || !queue.tracks.size) {
     return interaction.reply({
       content: "❌ Queue is empty.",
-      ephemeral: true
+      flags: 64,
     });
   }
 
@@ -21,3 +21,4 @@ export default async function queueCmd(interaction) {
 
   return interaction.reply({ embeds: [embed] });
 }
+
