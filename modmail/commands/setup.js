@@ -3,7 +3,7 @@ import {
   PermissionFlagsBits,
   ChannelType,
 } from "discord.js";
-import { saveModmailConfig } from "./config.js";
+import { saveModmailConfig } from "../storage/config.js";
 
 /*
 pending[userId] = {
@@ -169,3 +169,4 @@ async function finalizeSetup(message, state) {
 
   await message.reply({ embeds: [embed] });
 }
+
