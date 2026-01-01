@@ -14,7 +14,7 @@ export async function handleModmailCore(interaction) {
   if (!forum || forum.type !== ChannelType.GuildForum) {
     await interaction.reply({
       content: "❌ Invalid selection. Please select a forum channel.",
-      ephemeral: true,
+      flags: 64,
     });
     return true;
   }
@@ -67,3 +67,4 @@ export async function handleModmailCore(interaction) {
 
   return true;
 }
+
