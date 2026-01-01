@@ -1,24 +1,39 @@
 import play from "./play.js";
 import pause from "./pause.js";
 import stop from "./stop.js";
+import skip from "./skip.js";
 import queue from "./queue.js";
 import current from "./current.js";
 import volume from "./volume.js";
-import skip from "./skip.js";
 
-export async function musicCmd(interaction) {
+export async function handleMusic(interaction) {
+  if (interaction.commandName !== "music") return false;
+
   const sub = interaction.options.getSubcommand();
 
-  if (sub === "play") return play(interaction);
-  if (sub === "pause") return pause(interaction);
-  if (sub === "stop") return stop(interaction);
-  if (sub === "queue") return queue(interaction);
-  if (sub === "current") return current(interaction);
-  if (sub === "volume") return volume(interaction);
-  if (sub === "skip") return skip(interaction);
+  switch (sub) {
+    case "play":
+      await play(interaction);
+      break;
+    case "pause":
+      await pause(interaction);
+      break;
+    case "stop":
+      await stop(interaction);
+      break;
+    case "skip":
+      await skip(interaction);
+      break;
+    case "queue":
+      await queue(interaction);
+      break;
+    case "current":
+      await current(interaction);
+      break;
+    case "volume":
+      await volume(interaction);
+      break;
+  }
 
-  return interaction.reply({
-    content: "❌ Unknown music command.",
-    ephemeral: true,
-  });
+  return true;
 }
