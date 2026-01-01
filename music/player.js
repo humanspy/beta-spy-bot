@@ -1,27 +1,13 @@
 import { Player } from "discord-player";
 import { EmbedBuilder } from "discord.js";
-import playdl from "play-dl";
+import { YoutubeiExtractor } from "discord-player-youtubei";
 
 const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
-export async function setupPlayer(client) {
-  /* ===================== PLAY-DL SETUP ===================== */
-  // This makes discord-player prefer play-dl over ytdl-core
-  if (process.env.YT_COOKIE) {
-    await playdl.setToken({
-      youtube: {
-        cookie: process.env.YT_COOKIE,
-      },
-    });
-    console.log("🍪 YouTube cookie loaded for play-dl");
-  } else {
-    console.log("ℹ️ No YT cookie set (play-dl still works)");
-  }
-
+export function setupPlayer(client) {
   /* ===================== PLAYER INIT ===================== */
 
   const player = new Player(client, {
-    useLegacyFFmpeg: false,
     ytdlOptions: {
       quality: "highestaudio",
       filter: "audioonly",
@@ -30,7 +16,15 @@ export async function setupPlayer(client) {
   });
 
   /* ===================== EXTRACTORS ===================== */
-  // Correct for discord-player v6.x
+
+  // 🔴 Register YouTubei FIRST (important)
+  player.extractors.register(YoutubeiExtractor, {
+    streamOptions: {
+      quality: "highestaudio",
+    },
+  });
+
+  // Load remaining default extractors (Spotify, SoundCloud, etc.)
   player.extractors.loadDefault();
 
   console.log(
