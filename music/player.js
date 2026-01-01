@@ -8,21 +8,26 @@ export function setupPlayer(client) {
   /* ===================== PLAYER INIT ===================== */
 
   const player = new Player(client, {
-    ytdlOptions: {
-      quality: "highestaudio",
-      filter: "audioonly",
-      highWaterMark: 1 << 25,
-    },
+    skipFFmpeg: false,      // REQUIRED for youtubei
+    probeTimeout: 20000,    // Prevent AbortError on cold starts
+    lagMonitor: 30000,      // Railway-friendly
   });
 
-  player.on("error", error => {
-  console.error("❌ Discord-Player internal error:", error);
+  /* ===================== REQUIRED RAW ERROR LISTENERS ===================== */
+
+  // Core player errors (MANDATORY in v6.7+)
+  player.on("error", err => {
+    console.error("❌ Discord-Player internal error:", err);
   });
 
+  // Extractor-level errors (MANDATORY)
+  player.extractors.on("error", err => {
+    console.error("❌ Extractor error:", err);
+  });
 
   /* ===================== EXTRACTORS ===================== */
 
-  // 🔴 Register YouTubei FIRST (important)
+  // Register YouTubei FIRST
   player.extractors.register(YoutubeiExtractor, {
     streamOptions: {
       quality: "highestaudio",
@@ -37,7 +42,7 @@ export function setupPlayer(client) {
     player.extractors.store.map(e => e.name).join(", ")
   );
 
-  /* ===================== ERROR HANDLING ===================== */
+  /* ===================== QUEUE / PLAYER EVENTS ===================== */
 
   player.events.on("error", (queue, error) => {
     console.error(
@@ -68,7 +73,7 @@ export function setupPlayer(client) {
 
   player.events.on("playlistAdd", (queue, playlist) => {
     const channel = queue.metadata;
-    if (!channel) return;
+    if (!channel?.send) return;
 
     const embed = new EmbedBuilder()
       .setColor(0x1db954)
@@ -91,7 +96,7 @@ export function setupPlayer(client) {
 
   player.events.on("playlistStart", (queue, playlist) => {
     const channel = queue.metadata;
-    if (!channel) return;
+    if (!channel?.send) return;
 
     channel
       .send(
@@ -104,7 +109,7 @@ export function setupPlayer(client) {
 
   player.events.on("playerStart", (queue, track) => {
     const channel = queue.metadata;
-    if (!channel) return;
+    if (!channel?.send) return;
 
     const embed = new EmbedBuilder()
       .setColor(0x1db954)
