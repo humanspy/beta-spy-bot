@@ -151,44 +151,57 @@ export const guildCommands = [
 
   /* ===================== MUSIC ===================== */
 
-  new SlashCommandBuilder()
-    .setName("play")
-    .setDescription("Play a song")
-    .addStringOption(o =>
-      o.setName("query").setDescription("Song name or URL").setRequired(true)
-    ),
+ new SlashCommandBuilder()
+  .setName("music")
+  .setDescription("Music controls")
+  .addSubcommand(sub =>
+    sub
+      .setName("play")
+      .setDescription("Play a song")
+      .addStringOption(o =>
+        o.setName("query")
+          .setDescription("Song name or URL")
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("pause")
+      .setDescription("Pause the music")
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("stop")
+      .setDescription("Stop music and leave the voice channel")
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("skip")
+      .setDescription("Skip the current song")
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("queue")
+      .setDescription("Show the music queue")
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("current")
+      .setDescription("Show the currently playing song")
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("volume")
+      .setDescription("Set the music volume")
+      .addIntegerOption(o =>
+        o.setName("level")
+          .setDescription("Volume (0–100)")
+          .setRequired(true)
+          .setMinValue(0)
+          .setMaxValue(100)
+      )
+  ),
 
-  new SlashCommandBuilder()
-    .setName("pause")
-    .setDescription("Pause the music"),
-
-  new SlashCommandBuilder()
-    .setName("stop")
-    .setDescription("Stop music and leave the voice channel"),
-
-  new SlashCommandBuilder()
-    .setName("skip")
-    .setDescription("Skip the current song"),
-
-  new SlashCommandBuilder()
-    .setName("queue")
-    .setDescription("Show the music queue"),
-
-  new SlashCommandBuilder()
-    .setName("current")
-    .setDescription("Show the currently playing song"),
-
-  new SlashCommandBuilder()
-    .setName("volume")
-    .setDescription("Set the music volume")
-    .addIntegerOption(o =>
-      o.setName("level")
-        .setDescription("Volume (0–100)")
-        .setRequired(true)
-        .setMinValue(0)
-        .setMaxValue(100)
-	),
-	
   /* ===================== LEVEL ===================== */
  
   new SlashCommandBuilder()
@@ -218,3 +231,4 @@ export const guildCommands = [
 
 
 ].map(cmd => cmd.toJSON());
+
