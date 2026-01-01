@@ -139,7 +139,7 @@ export default {
               ? `<#${existing.channels.modLogs}>`
               : "Not set",
             inline: true,
-          }
+          },
 		  {
 		    name: "Counting Channel",
 		    value: existing.channels?.counting
@@ -322,4 +322,5 @@ export default {
 	    });
 	  });
 	};
+
 
