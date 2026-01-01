@@ -73,7 +73,7 @@ export default {
       if (!existing) {
         return interaction.reply({
           content: "❌ This server has not been set up yet.",
-          ephemeral: true,
+          flags: 64,
         });
       }
 
@@ -128,14 +128,14 @@ export default {
       if (!canModifySetup(interaction)) {
         return interaction.reply({
           content: "❌ Missing permission: setup",
-          ephemeral: true,
+          flags: 64,
         });
       }
 
       deleteStaffConfig(guildId);
       return interaction.reply({
         content: "🗑️ Setup has been reset.",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -144,14 +144,14 @@ export default {
     if (!canModifySetup(interaction)) {
       return interaction.reply({
         content: "❌ Missing permission: setup",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
     if (existing?.staffRoles?.length) {
       return interaction.reply({
         content: "⚠️ Setup already exists. Reset it first if needed.",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -189,7 +189,7 @@ export default {
     ) {
       return modalInt.reply({
         content: "❌ Please enter a number between 0 and 15.",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -218,7 +218,7 @@ export default {
               .setMaxValues(1)
           ),
         ],
-        ephemeral: true,
+        flags: 64,
       });
 
       const roleInt = await roleMsg.awaitMessageComponent({
@@ -274,7 +274,7 @@ export default {
               .addChannelTypes(ChannelType.GuildText)
           ),
         ],
-        ephemeral: true,
+        flags: 64,
       });
 
       const i = await msg.awaitMessageComponent({
@@ -295,10 +295,11 @@ export default {
 
     await modalInt.followUp({
       content: "🎉 Setup completed successfully!",
-      ephemeral: true,
+      flags: 64,
     });
   },
 };
+
 
 
 
