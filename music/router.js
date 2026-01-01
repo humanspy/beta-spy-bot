@@ -1,5 +1,5 @@
-import { musicCmd } from "./cmds/index.js";
+import { handleMusic as musicHandler } from "./cmds/index.js";
 
 export async function handleMusic(interaction) {
-  return musicCmd(interaction);
+  return musicHandler(interaction);
 }
