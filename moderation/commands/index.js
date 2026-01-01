@@ -5,6 +5,8 @@ import caseCmd from "./case.js";
 import purge from "./purge.js";
 import help from "./help.js";
 import generatebancode from "./generatebancode.js";
+import { execute as setup } from "./setup.js";
+
 
 export async function handleModeration(interaction) {
   const command = interaction.commandName;
@@ -17,6 +19,8 @@ export async function handleModeration(interaction) {
   if (command === "purge") return purge(interaction);
   if (command === "help") return help(interaction);
   if (command === "generatebancode") return generatebancode(interaction);
+  if (command === "setup") return setup(interaction);
 
   return false;
 }
+
