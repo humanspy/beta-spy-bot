@@ -63,8 +63,6 @@ client.once("ready", async () => {
 });
 
 /* ===================== INTERACTIONS ===================== */
-
-
 import { handleLevelRoleComponents } from "./profile/level/core.js";
 import { handleModmailCore } from "./modmail/core.js";
 import { routeInteraction } from "./router.js";
@@ -72,28 +70,28 @@ import { routeInteraction } from "./router.js";
 client.on("interactionCreate", async interaction => {
   try {
     /* ===================== COMPONENT INTERACTIONS ===================== */
-    // Buttons, modals, selects (no slash commands)
-
+    // Let global component handlers run if they want to
     if (await handleLevelRoleComponents(interaction)) return;
     if (await handleModmailCore(interaction)) return;
 
     /* ===================== SLASH COMMANDS ===================== */
+    // IMPORTANT: do NOT return for non-chat interactions
 
-    if (!interaction.isChatInputCommand()) return;
+    if (interaction.isChatInputCommand()) {
+      if (!interaction.inGuild()) {
+        return interaction.reply({
+          content: "❌ This command can only be used in a server.",
+          ephemeral: true,
+        });
+      }
 
-    if (!interaction.inGuild()) {
-      return interaction.reply({
-        content: "❌ This command can only be used in a server.",
-        ephemeral: true,
-      });
+      await routeInteraction(interaction);
     }
-
-    await routeInteraction(interaction);
 
   } catch (err) {
     console.error("❌ Interaction handler crash:", err);
 
-    if (!interaction.replied && interaction.isRepliable()) {
+    if (interaction.isRepliable() && !interaction.replied) {
       await interaction.reply({
         content: "❌ An unexpected error occurred.",
         ephemeral: true,
@@ -101,6 +99,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 });
+
 
 
 
