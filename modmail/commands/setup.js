@@ -10,7 +10,7 @@ export default async function modmailSetup(interaction) {
   if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
     return interaction.reply({
       content: "❌ You need Administrator permissions to set up ModMail.",
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -24,6 +24,7 @@ export default async function modmailSetup(interaction) {
   await interaction.reply({
     content: "📁 **Select the forum channel to use for ModMail tickets**",
     components: [row],
-    ephemeral: true,
+    flags: 64,
   });
 }
+
