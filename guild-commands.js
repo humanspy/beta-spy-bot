@@ -5,6 +5,13 @@ export const guildCommands = [
   /* ===================== MODERATION ===================== */
 
   new SlashCommandBuilder()
+    .setName("setup")
+    .setDescription("Interactive setup wizard")
+    .addSubcommand(sub => sub.setName("start").setDescription("Run setup"))
+    .addSubcommand(sub => sub.setName("view").setDescription("View setup"))
+    .addSubcommand(sub => sub.setName("reset").setDescription("Reset setup")),
+  
+  new SlashCommandBuilder()
     .setName("warn")
     .setDescription("Manage warnings")
     .addSubcommand(sub =>
@@ -231,4 +238,5 @@ export const guildCommands = [
 
 
 ].map(cmd => cmd.toJSON());
+
 
