@@ -221,16 +221,6 @@ export default {
         flags: 64,
       });
 
-    const roleInt = await roleMsg.awaitMessageComponent({
-      componentType: 8,
-      time: WIZARD_TIMEOUT,
-      filter: i => i.user.id === interaction.user.id,
-    });
-
-    // ✅ ACKNOWLEDGE IMMEDIATELY
-    await roleInt.deferUpdate();
-
-    const roleId = roleInt.values[0];
 
     const roleInt = await roleMsg.awaitMessageComponent({
       componentType: 8,
@@ -324,6 +314,7 @@ export default {
     });
   },
 };
+
 
 
 
