@@ -15,6 +15,11 @@ export function setupPlayer(client) {
     },
   });
 
+  player.on("error", error => {
+  console.error("❌ Discord-Player internal error:", error);
+  });
+
+
   /* ===================== EXTRACTORS ===================== */
 
   // 🔴 Register YouTubei FIRST (important)
