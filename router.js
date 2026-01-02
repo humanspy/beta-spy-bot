@@ -34,8 +34,17 @@ export async function routeInteraction(interaction) {
     }
   } catch (err) {
     console.error("[ROUTER] Moderation error:", err);
-    throw err;
-  }
+  
+    if (!interaction.replied && interaction.isRepliable()) {
+      await interaction.reply({
+        content: "❌ Moderation command failed. Check permissions or logs.",
+        flags: 64,
+      });
+    }
+
+  return;
+}
+
   
   /* ===================== MODMAIL ===================== */
   try {
@@ -53,6 +62,7 @@ export async function routeInteraction(interaction) {
   /* ===================== FALLBACK ===================== */
   console.warn(`[ROUTER] Unhandled command: /${command}`);
 }
+
 
 
 
