@@ -14,6 +14,8 @@ export default async function ban(interaction, sub) {
       const hackban = interaction.options.getBoolean("hackban") ?? false;
       const deleteDays = interaction.options.getInteger("delete_days") ?? 0;
 
+      let dmFailed = false;
+
       if (hackban) {
         await interaction.guild.members.ban(target, {
           reason,
@@ -28,12 +30,25 @@ export default async function ban(interaction, sub) {
         return interaction.editReply("❌ User not found.");
       }
 
+      try {
+        await member.user.send(
+          `🔨 **You have been banned from ${interaction.guild.name}**\n\n` +
+          `**Reason:** ${reason}\n\n` +
+          `If you believe this was a mistake, you may appeal if the server allows it.`
+        );
+      } catch {
+        dmFailed = true;
+      }
+
       await member.ban({
         reason,
         deleteMessageSeconds: deleteDays * 86400,
       });
 
-      return interaction.editReply(`🔨 **${member.user.tag}** has been banned.`);
+      return interaction.editReply(
+        `🔨 **${member.user.tag}** has been banned.` +
+        (dmFailed ? "\n⚠️ Could not send DM to the user." : "")
+      );
     }
 
     if (sub === "remove") {
