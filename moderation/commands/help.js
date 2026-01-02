@@ -10,6 +10,7 @@ export default async function help(interaction) {
       "**/ban add | remove**\n" +
       "**/case view | remove**\n" +
       "**/purge**\n" +
+	  "**/kick**\n" +
       "**/generatebancode**"
     )
     .setTimestamp();

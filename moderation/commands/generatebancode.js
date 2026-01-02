@@ -1,27 +1,20 @@
-import { EmbedBuilder } from "discord.js";
-import {
-  getHighestStaffRole,
-  generateBanOverrideCode,
-  getOverrideChannel,
-} from "../core.js";
+import { generateBanOverrideCode, hasPermission } from "../core.js";
 
 export default async function generatebancode(interaction) {
-  const role = getHighestStaffRole(interaction.member);
-  if (!role) return interaction.reply({ content: "❌ No permission", ephemeral: true });
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  const code = await generateBanOverrideCode(
-    interaction.user.tag,
-    interaction.user.id
-  );
+    if (!hasPermission(interaction.member, "ban")) {
+      return interaction.editReply("❌ No permission.");
+    }
 
-  const embed = new EmbedBuilder()
-    .setTitle("🔑 Ban Override Code")
-    .setDescription(`\`${code}\``)
-    .setColor(0x9b59b6);
+    const code = await generateBanOverrideCode(
+      interaction.user.tag,
+      interaction.user.id
+    );
 
-  const channelId = getOverrideChannel(interaction.guild.id);
-  const channel = await interaction.guild.channels.fetch(channelId);
-
-  await channel.send({ embeds: [embed] });
-  return interaction.reply({ content: "✅ Code generated", ephemeral: true });
+    return interaction.editReply(`🔑 Override code generated:\n\`${code}\``);
+  } catch {
+    return interaction.editReply("❌ Failed to generate override code.");
+  }
 }

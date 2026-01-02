@@ -6,8 +6,6 @@ import { loadModmailConfig } from "./config.js";
 const TICKETS_PATH = "./modmail/storage/tickets.json";
 const APPEALS_PATH = "./modmail/storage/appeals.json";
 
-/* ===================== JSON HELPERS ===================== */
-
 async function loadJSON(path, fallback) {
   try {
     return JSON.parse(await fs.readFile(path, "utf8"));
@@ -21,47 +19,15 @@ async function saveJSON(path, data) {
   await fs.writeFile(path, JSON.stringify(data, null, 2));
 }
 
-/* ===================== CREATE TICKET ===================== */
-
-export async function createTicket({
-  guildId,
-  userId,
-  type,
-  topic,
-  client,
-}) {
+export async function createTicket({ guildId, userId, type, topic, client }) {
   const config = await loadModmailConfig(guildId);
-  if (!config?.enabled) {
-    throw new Error("ModMail not enabled");
-  }
+  if (!config?.enabled) throw new Error();
 
   const guild = client.guilds.cache.get(guildId);
-  if (!guild) {
-    throw new Error("Guild not found");
-  }
+  if (!guild) throw new Error();
 
   const forum = guild.channels.cache.get(config.forumChannelId);
-  if (!forum || forum.type !== ChannelType.GuildForum) {
-    throw new Error("ModMail forum misconfigured");
-  }
-
-  /* ===================== TAGS ===================== */
-
-  const appliedTags = [];
-
-  if (config.tags?.open) {
-    appliedTags.push(config.tags.open);
-  }
-
-  const typeTag = forum.availableTags.find(
-    t => t.name.toLowerCase() === type.toLowerCase()
-  );
-
-  if (typeTag) {
-    appliedTags.push(typeTag.id);
-  }
-
-  /* ===================== EMBED ===================== */
+  if (!forum || forum.type !== ChannelType.GuildForum) throw new Error();
 
   const embed = new EmbedBuilder()
     .setTitle(`📨 ${type}`)
@@ -71,39 +37,26 @@ export async function createTicket({
     )
     .setTimestamp();
 
-  /* ===================== FORUM THREAD ===================== */
-
   const thread = await forum.threads.create({
     name: `${type} -- ${userId}`,
-    message: {
-      content: "@everyone",
-      embeds: [embed],
-    },
-    appliedTags,
+    message: { embeds: [embed] },
+    appliedTags: [config.tags?.open].filter(Boolean),
   });
 
-  /* ===================== SAVE ===================== */
-
   const tickets = await loadJSON(TICKETS_PATH, []);
-
-  const ticket = {
+  tickets.push({
     id: crypto.randomUUID(),
     guildId,
     userId,
     type,
     topic,
     threadId: thread.id,
-    status: "open",
     createdAt: Date.now(),
-  };
+  });
 
-  tickets.push(ticket);
   await saveJSON(TICKETS_PATH, tickets);
-
-  return ticket;
+  return tickets.at(-1);
 }
-
-/* ===================== APPEALS ===================== */
 
 export async function getAppealCount(guildId, userId) {
   const data = await loadJSON(APPEALS_PATH, {});

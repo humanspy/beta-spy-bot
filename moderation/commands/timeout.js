@@ -1,4 +1,4 @@
-import { hasPermission } from "../permissions.js";
+import { hasPermission, dmAffectedUser } from "../core.js";
 import { parseDuration } from "../utils/time.js";
 
 export default async function timeout(interaction, sub) {
@@ -11,7 +11,7 @@ export default async function timeout(interaction, sub) {
 
     const member = interaction.options.getMember("user");
     if (!member) {
-      return interaction.editReply("❌ User not found in this server.");
+      return interaction.editReply("❌ User not found.");
     }
 
     if (sub === "add") {
@@ -25,21 +25,33 @@ export default async function timeout(interaction, sub) {
 
       await member.timeout(durationMs, reason);
 
-      return interaction.editReply(
-        `⏱️ **${member.user.tag}** has been timed out.\nReason: ${reason}`
-      );
+      await dmAffectedUser({
+        actor: interaction.user,
+        commandName: "timeout",
+        targetUser: member.user,
+        guildName: interaction.guild.name,
+        message: `You have been timed out.\n\nDuration: ${durationRaw}\nReason: ${reason}`,
+      });
+
+      return interaction.editReply(`⏱️ **${member.user.tag}** timed out.`);
     }
 
     if (sub === "remove") {
-      const reason = interaction.options.getString("reason") ?? "Timeout removed";
+      await member.timeout(null);
 
-      await member.timeout(null, reason);
+      await dmAffectedUser({
+        actor: interaction.user,
+        commandName: "timeout",
+        targetUser: member.user,
+        guildName: interaction.guild.name,
+        message: "Your timeout has been removed.",
+      });
 
       return interaction.editReply(`✅ Timeout removed for **${member.user.tag}**.`);
     }
 
-  } catch (err) {
-    console.error("[TIMEOUT]", err);
+    return interaction.editReply("❌ Invalid subcommand.");
+  } catch {
     return interaction.editReply("❌ Failed to execute timeout command.");
   }
 }

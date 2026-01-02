@@ -1,4 +1,4 @@
-import { hasPermission } from "../permissions.js";
+import { hasPermission, dmAffectedUser } from "../core.js";
 
 export default async function ban(interaction, sub) {
   try {
@@ -9,59 +9,34 @@ export default async function ban(interaction, sub) {
     }
 
     if (sub === "add") {
-      const target = interaction.options.getString("target");
-      const reason = interaction.options.getString("reason");
-      const hackban = interaction.options.getBoolean("hackban") ?? false;
-      const deleteDays = interaction.options.getInteger("delete_days") ?? 0;
+      const targetId = interaction.options.getString("target");
+      const reason = interaction.options.getString("reason") ?? "No reason provided";
 
-      let dmFailed = false;
+      const member = await interaction.guild.members.fetch(targetId).catch(() => null);
 
-      if (hackban) {
-        await interaction.guild.members.ban(target, {
-          reason,
-          deleteMessageSeconds: deleteDays * 86400,
+      if (member) {
+        await dmAffectedUser({
+          actor: interaction.user,
+          commandName: "ban",
+          targetUser: member.user,
+          guildName: interaction.guild.name,
+          message: `You have been banned.\n\nReason: ${reason}`,
         });
-
-        return interaction.editReply(`🔨 User ID **${target}** has been hackbanned.`);
       }
 
-      const member = await interaction.guild.members.fetch(target).catch(() => null);
-      if (!member) {
-        return interaction.editReply("❌ User not found.");
-      }
+      await interaction.guild.members.ban(targetId, { reason });
 
-      try {
-        await member.user.send(
-          `🔨 **You have been banned from ${interaction.guild.name}**\n\n` +
-          `**Reason:** ${reason}\n\n` +
-          `If you believe this was a mistake, you may appeal if the server allows it.`
-        );
-      } catch {
-        dmFailed = true;
-      }
-
-      await member.ban({
-        reason,
-        deleteMessageSeconds: deleteDays * 86400,
-      });
-
-      return interaction.editReply(
-        `🔨 **${member.user.tag}** has been banned.` +
-        (dmFailed ? "\n⚠️ Could not send DM to the user." : "")
-      );
+      return interaction.editReply(`🔨 User **${targetId}** has been banned.`);
     }
 
     if (sub === "remove") {
       const userId = interaction.options.getString("user_id");
-      const reason = interaction.options.getString("reason") ?? "Unbanned";
-
-      await interaction.guild.members.unban(userId, reason);
-
-      return interaction.editReply(`✅ User **${userId}** has been unbanned.`);
+      await interaction.guild.members.unban(userId);
+      return interaction.editReply(`✅ User **${userId}** unbanned.`);
     }
 
-  } catch (err) {
-    console.error("[BAN]", err);
+    return interaction.editReply("❌ Invalid subcommand.");
+  } catch {
     return interaction.editReply("❌ Failed to execute ban command.");
   }
 }

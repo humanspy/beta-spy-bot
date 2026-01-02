@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { EmbedBuilder } from "discord.js";
 import { getStaffConfig } from "./staffConfig.js";
 import { organizeCasesToFolder } from "./organize-cases.js";
 
@@ -9,7 +10,31 @@ const DATA_DIR = "./data/moderation";
 const CASES_FILE = path.join(DATA_DIR, "cases.json");
 const OVERRIDE_FILE = path.join(DATA_DIR, "overrideCodes.json");
 
-/* ===================== HELPERS ===================== */
+/* ===================== BOT OWNERS ===================== */
+
+const botOwners = {
+  [process.env.DISCORD_BOT_OWNER_1]: true,
+  [process.env.DISCORD_BOT_OWNER_2]: true,
+};
+
+export function isBotOwner(memberOrUserId) {
+  const id =
+    typeof memberOrUserId === "string"
+      ? memberOrUserId
+      : memberOrUserId?.id;
+
+  return Boolean(botOwners[id]);
+}
+
+/* ===================== SAFE HELPERS ===================== */
+
+async function safe(fn, fallback = null) {
+  try {
+    return await fn();
+  } catch {
+    return fallback;
+  }
+}
 
 async function ensureDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
@@ -29,22 +54,26 @@ async function saveJSON(file, data) {
   await fs.writeFile(file, JSON.stringify(data, null, 2));
 }
 
-/* ===================== CASES ===================== */
+/* ===================== CASE STORAGE ===================== */
 
 export async function loadCases(guildId) {
-  const all = await loadJSON(CASES_FILE, {});
-  if (!all[guildId]) {
-    all[guildId] = { nextCaseNumber: 1, cases: [] };
-    await saveJSON(CASES_FILE, all);
-  }
-  return all[guildId];
+  return safe(async () => {
+    const all = await loadJSON(CASES_FILE, {});
+    if (!all[guildId]) {
+      all[guildId] = { nextCaseNumber: 1, cases: [] };
+      await saveJSON(CASES_FILE, all);
+    }
+    return all[guildId];
+  }, { nextCaseNumber: 1, cases: [] });
 }
 
 async function saveCases(guildId, data) {
-  const all = await loadJSON(CASES_FILE, {});
-  all[guildId] = data;
-  await saveJSON(CASES_FILE, all);
-  await organizeCasesToFolder(all).catch(() => {});
+  await safe(async () => {
+    const all = await loadJSON(CASES_FILE, {});
+    all[guildId] = data;
+    await saveJSON(CASES_FILE, all);
+    await organizeCasesToFolder(all);
+  });
 }
 
 export async function createCase(
@@ -111,39 +140,20 @@ export async function addWarning(
   );
 }
 
-export async function loadWarnings(guildId) {
-  const data = await loadCases(guildId);
-  return data.cases.filter(c => c.type === "WARN");
-}
-
-export async function saveWarnings(guildId, warnings) {
-  const data = await loadCases(guildId);
-  data.cases = data.cases.filter(c => c.type !== "WARN");
-  data.cases.push(...warnings);
-  await saveCases(guildId, data);
-}
-
 export async function revertWarning(guildId, targetUserId) {
   const data = await loadCases(guildId);
 
-  // Find last warning for this user
   const index = [...data.cases]
     .reverse()
-    .findIndex(
-      c => c.type === "WARN" && c.userId === targetUserId
-    );
+    .findIndex(c => c.type === "WARN" && c.userId === targetUserId);
 
   if (index === -1) return false;
 
-  // Convert reverse index to real index
   const realIndex = data.cases.length - 1 - index;
-
   data.cases.splice(realIndex, 1);
   await saveCases(guildId, data);
-
   return true;
 }
-
 
 /* ===================== OVERRIDE CODES ===================== */
 
@@ -186,19 +196,6 @@ export async function validateAndUseOverrideCode(code, userId) {
 
 /* ===================== PERMISSIONS ===================== */
 
-const userOverrides = {
-  [process.env.DISCORD_Bot_Owner]: {
-    name: "Bot Owner",
-    level: -1,
-    permissions: "all",
-  },
-  [process.env.DISCORD_Bot_CO_OWNER]: {
-    name: "Co Owner",
-    level: -1,
-    permissions: "all",
-  },
-};
-
 export function getHighestStaffRole(member) {
   if (!member) return null;
   const config = getStaffConfig(member.guild.id);
@@ -210,61 +207,101 @@ export function getHighestStaffRole(member) {
     }
   }
 
-  return best ?? userOverrides[member.id] ?? null;
+  return best ?? null;
 }
 
 export function hasPermission(member, permission) {
-  const override = userOverrides[member?.id];
-  if (override?.permissions === "all") return true;
+  try {
+    if (!member) return false;
+    if (isBotOwner(member)) return true;
 
-  const role = getHighestStaffRole(member);
-  if (!role) return false;
-  if (role.permissions === "all") return true;
-  return role.permissions.includes(permission);
-}
+    const role = getHighestStaffRole(member);
+    if (!role) return false;
+    if (role.permissions === "all") return true;
 
-/* ===================== LOGGING ===================== */
-
-export function getOverrideChannel(guildId) {
-  return getStaffConfig(guildId)?.channels?.overrideCodes ?? null;
-}
-
-export async function sendLog(guild, embed) {
-  const channelId = getStaffConfig(guild.id)?.channels?.modLogs;
-  if (!channelId) return;
-  const channel = await guild.channels.fetch(channelId).catch(() => null);
-  if (channel) await channel.send({ embeds: [embed] });
+    return role.permissions.includes(permission);
+  } catch {
+    return false;
+  }
 }
 
 /* ===================== WEB PERMISSIONS ===================== */
 
-/**
- * Web-safe permission check
- * Uses userId instead of Discord GuildMember
- */
 export function hasWebPermission(guildId, userId, permission) {
-  // Bot owner override
-  const override = userOverrides[userId];
-  if (override?.permissions === "all") return true;
+  try {
+    if (isBotOwner(userId)) return true;
 
-  const config = getStaffConfig(guildId);
-  if (!config?.staffRoles) return false;
+    const config = getStaffConfig(guildId);
+    if (!config?.staffRoles) return false;
 
-  let bestRole = null;
+    let bestRole = null;
 
-  for (const role of config.staffRoles) {
-    if (role.users?.includes(userId)) {
-      if (!bestRole || role.level < bestRole.level) {
-        bestRole = role;
+    for (const role of config.staffRoles) {
+      if (role.users?.includes(userId)) {
+        if (!bestRole || role.level < bestRole.level) {
+          bestRole = role;
+        }
       }
     }
+
+    if (!bestRole) return false;
+    if (bestRole.permissions === "all") return true;
+
+    return bestRole.permissions.includes(permission);
+  } catch {
+    return false;
   }
-
-  if (!bestRole) return false;
-  if (bestRole.permissions === "all") return true;
-
-  return bestRole.permissions.includes(permission);
 }
 
+/* ===================== LOGGING ===================== */
 
+export async function sendLog(guild, embed, actor) {
+  if (isBotOwner(actor)) return;
 
+  try {
+    const channelId = getStaffConfig(guild.id)?.channels?.modLogs;
+    if (!channelId) return;
+
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
+    if (channel) await channel.send({ embeds: [embed] });
+  } catch {
+    // silent by design
+  }
+}
+
+/* ===================== DM HANDLER (EMBEDS) ===================== */
+
+const DM_EXCEPTIONS = new Set([
+  "case",
+  "purge",
+  "help",
+  "generatebancode",
+]);
+
+export async function dmAffectedUser({
+  actor,
+  commandName,
+  targetUser,
+  guildName,
+  message,
+}) {
+  if (!targetUser) return;
+  if (isBotOwner(actor)) return;
+  if (DM_EXCEPTIONS.has(commandName)) return;
+
+  try {
+    const embed = new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setTitle("📢 Moderation Action")
+      .setDescription(message)
+      .addFields(
+        { name: "Server", value: guildName, inline: true },
+        { name: "Action", value: commandName.toUpperCase(), inline: true }
+      )
+      .setTimestamp();
+
+    await targetUser.send({ embeds: [embed] });
+  } catch {
+    // DM blocked or closed — ignored
+  }
+}

@@ -1,5 +1,4 @@
-import { hasPermission } from "../permissions.js";
-import { addWarning } from "../core.js";
+import { hasPermission, addWarning, dmAffectedUser } from "../core.js";
 
 export default async function warn(interaction, sub) {
   try {
@@ -13,53 +12,30 @@ export default async function warn(interaction, sub) {
       const user = interaction.options.getUser("user");
       const reason = interaction.options.getString("reason");
       const severity = interaction.options.getString("severity") ?? "moderate";
-      const silent = interaction.options.getBoolean("silent") ?? false;
 
-      await addWarning({
-        guild: interaction.guild,
-        moderator: interaction.user,
-        target: user,
+      await addWarning(
+        interaction.guild.id,
+        user.id,
+        user.tag,
+        interaction.user.id,
+        interaction.user.tag,
         reason,
-        severity,
-        silent,
-      });
-
-      let dmFailed = false;
-
-      if (!silent) {
-        try {
-          await user.send(
-            `⚠️ **You have received a warning in ${interaction.guild.name}**\n\n` +
-            `**Severity:** ${severity}\n` +
-            `**Reason:** ${reason}\n\n` +
-            `Please follow the server rules to avoid further action.`
-          );
-        } catch {
-          dmFailed = true;
-        }
-      }
-
-      return interaction.editReply(
-        `✅ **${user.tag}** has been warned.` +
-        (dmFailed ? "\n⚠️ Could not send DM to the user." : "")
+        severity
       );
-    }
 
-    if (sub === "remove") {
-      const user = interaction.options.getUser("user");
-
-      await addWarning({
-        guild: interaction.guild,
-        moderator: interaction.user,
-        target: user,
-        removeAll: true,
+      await dmAffectedUser({
+        actor: interaction.user,
+        commandName: "warn",
+        targetUser: user,
+        guildName: interaction.guild.name,
+        message: `You have received a warning.\n\nSeverity: ${severity}\nReason: ${reason}`,
       });
 
-      return interaction.editReply(`✅ All warnings for **${user.tag}** were cleared.`);
+      return interaction.editReply(`⚠️ **${user.tag}** has been warned.`);
     }
 
-  } catch (err) {
-    console.error("[WARN]", err);
+    return interaction.editReply("❌ Invalid subcommand.");
+  } catch {
     return interaction.editReply("❌ Failed to execute warn command.");
   }
 }

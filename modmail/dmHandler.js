@@ -11,21 +11,11 @@ import {
   getAppealCount,
   incrementAppealCount,
 } from "./ticketManager.js";
-import { loadCases } from "../moderation/core.js";
+import { loadCases, isBotOwner } from "../moderation/core.js";
 import fs from "fs/promises";
 
-/*
-pending[userId] = {
-  step: "guild" | "type" | "topic",
-  guildId,
-  type
-}
-*/
 const pending = new Map();
-
 const TICKETS_PATH = "./modmail/storage/tickets.json";
-
-/* ===================== HELPERS ===================== */
 
 async function loadTickets() {
   try {
@@ -44,16 +34,13 @@ function isStaffThreadMessage(message, forumChannelId) {
   );
 }
 
-/* ===================== USER → BOT (DM FLOW) ===================== */
+/* ===================== USER → BOT ===================== */
 
 export async function handleModmailDM(message, client) {
-  if (message.author.bot) return;
-  if (message.guild) return;
+  if (message.author.bot || message.guild) return;
 
   const userId = message.author.id;
   const state = pending.get(userId);
-
-  /* ===================== STEP 0: FIND GUILDS ===================== */
 
   if (!state) {
     const rows = [];
@@ -65,8 +52,7 @@ export async function handleModmailDM(message, client) {
 
       try {
         const data = await loadCases(guild.id);
-        const hasCase = data.cases?.some(c => c.userId === userId);
-        if (!hasCase) continue;
+        if (!data.cases?.some(c => c.userId === userId)) continue;
 
         buttons.push(
           new ButtonBuilder()
@@ -79,132 +65,79 @@ export async function handleModmailDM(message, client) {
           rows.push(new ActionRowBuilder().addComponents(buttons));
           buttons = [];
         }
-      } catch {
-        continue;
-      }
+      } catch {}
     }
 
-    if (buttons.length) {
-      rows.push(new ActionRowBuilder().addComponents(buttons));
-    }
-
-    if (!rows.length) {
-      return message.reply(
-        "❌ I could not find any servers where you have a moderation case."
-      );
-    }
+    if (buttons.length) rows.push(new ActionRowBuilder().addComponents(buttons));
+    if (!rows.length)
+      return message.reply("❌ No servers found with moderation cases.");
 
     pending.set(userId, { step: "guild" });
 
     return message.reply({
-      content:
-        "📩 **ModMail**\n\n" +
-        "I found moderation cases for you in the following servers.\n" +
-        "Please select the server you want to contact:",
+      content: "📩 **ModMail**\nSelect a server:",
       components: rows,
     });
   }
 
-  /* ===================== BUTTON: GUILD SELECT ===================== */
-
   if (message.interaction?.customId?.startsWith("modmail_guild:")) {
     const guildId = message.interaction.customId.split(":")[1];
     const config = await loadModmailConfig(guildId);
+    if (!config) return message.reply("❌ Config error.");
 
-    if (!config) {
-      pending.delete(userId);
-      return message.reply("❌ ModMail configuration error.");
-    }
-
-    const types = Object.keys(config.ticketTypes)
-      .map((t, i) => `${i + 1}️⃣ ${t}`)
-      .join("\n");
-
-    pending.set(userId, {
-      step: "type",
-      guildId,
-    });
+    pending.set(userId, { step: "type", guildId });
 
     return message.reply(
-      "📩 **ModMail**\n\n" +
-        "What is this about?\n\n" +
-        `${types}\n\n` +
-        "Reply with the number."
+      Object.keys(config.ticketTypes)
+        .map((t, i) => `${i + 1}. ${t}`)
+        .join("\n")
     );
   }
 
   const config = await loadModmailConfig(state.guildId);
   if (!config) {
     pending.delete(userId);
-    return message.reply("❌ ModMail configuration error.");
+    return message.reply("❌ Config error.");
   }
 
-  /* ===================== STEP 1: TYPE ===================== */
-
   if (state.step === "type") {
-    const index = Number(message.content.trim()) - 1;
-    const types = Object.keys(config.ticketTypes);
-    const type = types[index];
-
-    if (!type) {
-      return message.reply("❌ Invalid option. Please reply with a number.");
-    }
+    const type = Object.keys(config.ticketTypes)[Number(message.content) - 1];
+    if (!type) return message.reply("❌ Invalid option.");
 
     if (type === "Ban Appeal") {
-      const used = await getAppealCount(state.guildId, userId);
-      if (used >= config.appealLimit) {
+      if ((await getAppealCount(state.guildId, userId)) >= config.appealLimit) {
         pending.delete(userId);
-        return message.reply(
-          "❌ You have reached the maximum number of ban appeals."
-        );
+        return message.reply("❌ Appeal limit reached.");
       }
     }
 
-    pending.set(userId, {
-      ...state,
-      step: "topic",
-      type,
-    });
-
-    const guide = config.ticketTypes[type]?.guide;
-
-    return message.reply(
-      `✏️ **${type}**\n` +
-        (guide ? `\n${guide}\n\n` : "\n") +
-        "Please describe your issue."
-    );
+    pending.set(userId, { ...state, step: "topic", type });
+    return message.reply("✏️ Please describe your issue.");
   }
 
-  /* ===================== STEP 2: TOPIC ===================== */
-
   if (state.step === "topic") {
-    const topic = message.content.trim();
-    if (!topic) {
-      return message.reply("❌ Topic cannot be empty.");
+    try {
+      const ticket = await createTicket({
+        guildId: state.guildId,
+        userId,
+        type: state.type,
+        topic: message.content,
+        client,
+      });
+
+      if (state.type === "Ban Appeal")
+        await incrementAppealCount(state.guildId, userId);
+
+      pending.delete(userId);
+      return message.reply("✅ Ticket created.");
+    } catch {
+      pending.delete(userId);
+      return message.reply("❌ Failed to create ticket.");
     }
-
-    const ticket = await createTicket({
-      guildId: state.guildId,
-      userId,
-      type: state.type,
-      topic,
-      client,
-    });
-
-    if (state.type === "Ban Appeal") {
-      await incrementAppealCount(state.guildId, userId);
-    }
-
-    pending.delete(userId);
-
-    return message.reply(
-      `✅ Your **${ticket.type}** ticket has been created.\n` +
-        "A staff member will contact you soon."
-    );
   }
 }
 
-/* ===================== STAFF → USER (RELAY) ===================== */
+/* ===================== STAFF → USER ===================== */
 
 export async function handleModmailThreadMessage(message) {
   if (!message.guild || message.author.bot) return;
@@ -218,19 +151,15 @@ export async function handleModmailThreadMessage(message) {
 
   if (!isStaffThreadMessage(message, config.forumChannelId)) return;
 
-  const user = await message.client.users
-    .fetch(ticket.userId)
-    .catch(() => null);
+  const user = await message.client.users.fetch(ticket.userId).catch(() => null);
   if (!user) return;
+
+  const anonymous = config.anonymousStaff || isBotOwner(message.author);
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(
-      config.anonymousStaff
-        ? "📨 Staff Reply"
-        : `📨 Reply from ${message.author.username}`
-    )
-    .setDescription(message.content || "*No text content*")
+    .setTitle(anonymous ? "📨 Staff Reply" : `📨 Reply`)
+    .setDescription(message.content || "*No content*")
     .setTimestamp();
 
   await user.send({ embeds: [embed] }).catch(() => {});

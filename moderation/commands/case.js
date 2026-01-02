@@ -1,5 +1,4 @@
-import { hasPermission } from "../permissions.js";
-import { loadCases, deleteCase } from "../core.js";
+import { hasPermission, loadCases, deleteCase } from "../core.js";
 
 export default async function caseCmd(interaction, sub) {
   try {
@@ -32,14 +31,12 @@ export default async function caseCmd(interaction, sub) {
 
     if (sub === "remove") {
       const number = interaction.options.getInteger("number");
-
       await deleteCase(interaction.guild.id, number);
-
       return interaction.editReply(`🗑️ Case **#${number}** deleted.`);
     }
 
-  } catch (err) {
-    console.error("[CASE]", err);
+    return interaction.editReply("❌ Invalid subcommand.");
+  } catch {
     return interaction.editReply("❌ Failed to execute case command.");
   }
 }
