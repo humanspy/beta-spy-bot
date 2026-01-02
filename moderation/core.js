@@ -6,13 +6,13 @@ import { organizeCasesToFolder } from "./organize-cases.js";
 
 /* ===================== PATHS ===================== */
 
-const DATA_DIR = "./data/moderation";
-const CASES_FILE = path.join(DATA_DIR, "cases.json");
-const OVERRIDE_FILE = path.join(DATA_DIR, "overrideCodes.json");
+export const DATA_DIR = "./data/moderation";
+export const CASES_FILE = path.join(DATA_DIR, "cases.json");
+export const OVERRIDE_FILE = path.join(DATA_DIR, "overrideCodes.json");
 
 /* ===================== BOT OWNERS ===================== */
 
-const botOwners = {
+export const botOwners = {
   [process.env.DISCORD_BOT_OWNER_1]: true,
   [process.env.DISCORD_BOT_OWNER_2]: true,
 };
@@ -28,7 +28,7 @@ export function isBotOwner(memberOrUserId) {
 
 /* ===================== SAFE HELPERS ===================== */
 
-async function safe(fn, fallback = null) {
+export async function safe(fn, fallback = null) {
   try {
     return await fn();
   } catch {
@@ -36,11 +36,11 @@ async function safe(fn, fallback = null) {
   }
 }
 
-async function ensureDir() {
+export async function ensureDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
 }
 
-async function loadJSON(file, fallback) {
+export async function loadJSON(file, fallback) {
   try {
     const raw = await fs.readFile(file, "utf8");
     return JSON.parse(raw);
@@ -49,7 +49,7 @@ async function loadJSON(file, fallback) {
   }
 }
 
-async function saveJSON(file, data) {
+export async function saveJSON(file, data) {
   await ensureDir();
   await fs.writeFile(file, JSON.stringify(data, null, 2));
 }
@@ -67,7 +67,7 @@ export async function loadCases(guildId) {
   }, { nextCaseNumber: 1, cases: [] });
 }
 
-async function saveCases(guildId, data) {
+export async function saveCases(guildId, data) {
   await safe(async () => {
     const all = await loadJSON(CASES_FILE, {});
     all[guildId] = data;
@@ -111,8 +111,11 @@ export async function createCase(
 export async function deleteCase(guildId, caseNumber) {
   const data = await loadCases(guildId);
   const before = data.cases.length;
+
   data.cases = data.cases.filter(c => c.caseNumber !== caseNumber);
+
   if (before === data.cases.length) return false;
+
   await saveCases(guildId, data);
   return true;
 }
@@ -140,6 +143,11 @@ export async function addWarning(
   );
 }
 
+export async function loadWarnings(guildId) {
+  const data = await loadCases(guildId);
+  return data.cases.filter(c => c.type === "WARN");
+}
+
 export async function revertWarning(guildId, targetUserId) {
   const data = await loadCases(guildId);
 
@@ -151,17 +159,18 @@ export async function revertWarning(guildId, targetUserId) {
 
   const realIndex = data.cases.length - 1 - index;
   data.cases.splice(realIndex, 1);
+
   await saveCases(guildId, data);
   return true;
 }
 
 /* ===================== OVERRIDE CODES ===================== */
 
-async function loadOverrideCodes() {
+export async function loadOverrideCodes() {
   return loadJSON(OVERRIDE_FILE, { codes: [] });
 }
 
-async function saveOverrideCodes(data) {
+export async function saveOverrideCodes(data) {
   await saveJSON(OVERRIDE_FILE, data);
 }
 
@@ -198,6 +207,7 @@ export async function validateAndUseOverrideCode(code, userId) {
 
 export function getHighestStaffRole(member) {
   if (!member) return null;
+
   const config = getStaffConfig(member.guild.id);
   let best = null;
 
@@ -265,13 +275,13 @@ export async function sendLog(guild, embed, actor) {
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (channel) await channel.send({ embeds: [embed] });
   } catch {
-    // silent by design
+    // intentionally silent
   }
 }
 
 /* ===================== DM HANDLER (EMBEDS) ===================== */
 
-const DM_EXCEPTIONS = new Set([
+export const DM_EXCEPTIONS = new Set([
   "case",
   "purge",
   "help",
@@ -302,6 +312,6 @@ export async function dmAffectedUser({
 
     await targetUser.send({ embeds: [embed] });
   } catch {
-    // DM blocked or closed — ignored
+    // DM closed or blocked
   }
 }
