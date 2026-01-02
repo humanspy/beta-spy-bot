@@ -1,5 +1,4 @@
 import { handleModeration } from "./moderation/commands/index.js";
-import { handleMusic } from "./music/router.js";
 import { handleProfile } from "./profile/router.js";
 import { handleModmail } from "./modmail/index.js";
 
@@ -23,18 +22,6 @@ export async function routeInteraction(interaction) {
     }
   } catch (err) {
     console.error("[ROUTER] Profile error:", err);
-    throw err;
-  }
-
-  /* ===================== MUSIC ===================== */
-  try {
-    const handled = await handleMusic(interaction);
-    if (handled) {
-      console.log("[ROUTER] → music");
-      return;
-    }
-  } catch (err) {
-    console.error("[ROUTER] Music error:", err);
     throw err;
   }
 
@@ -66,6 +53,7 @@ export async function routeInteraction(interaction) {
   /* ===================== FALLBACK ===================== */
   console.warn(`[ROUTER] Unhandled command: /${command}`);
 }
+
 
 
 
