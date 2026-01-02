@@ -24,7 +24,25 @@ export default async function warn(interaction, sub) {
         silent,
       });
 
-      return interaction.editReply(`✅ **${user.tag}** has been warned.`);
+      let dmFailed = false;
+
+      if (!silent) {
+        try {
+          await user.send(
+            `⚠️ **You have received a warning in ${interaction.guild.name}**\n\n` +
+            `**Severity:** ${severity}\n` +
+            `**Reason:** ${reason}\n\n` +
+            `Please follow the server rules to avoid further action.`
+          );
+        } catch {
+          dmFailed = true;
+        }
+      }
+
+      return interaction.editReply(
+        `✅ **${user.tag}** has been warned.` +
+        (dmFailed ? "\n⚠️ Could not send DM to the user." : "")
+      );
     }
 
     if (sub === "remove") {
