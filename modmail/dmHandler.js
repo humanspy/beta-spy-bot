@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
 } from "discord.js";
 
 import { loadModmailConfig } from "./config.js";
@@ -11,6 +12,7 @@ import {
   incrementAppealCount,
 } from "./ticketManager.js";
 import { loadCases } from "../moderation/core.js";
+import fs from "fs/promises";
 
 /*
 pending[userId] = {
@@ -20,6 +22,29 @@ pending[userId] = {
 }
 */
 const pending = new Map();
+
+const TICKETS_PATH = "./modmail/storage/tickets.json";
+
+/* ===================== HELPERS ===================== */
+
+async function loadTickets() {
+  try {
+    return JSON.parse(await fs.readFile(TICKETS_PATH, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function isStaffThreadMessage(message, forumChannelId) {
+  return (
+    message.guild &&
+    message.channel.isThread() &&
+    message.channel.parentId === forumChannelId &&
+    !message.author.bot
+  );
+}
+
+/* ===================== USER → BOT (DM FLOW) ===================== */
 
 export async function handleModmailDM(message, client) {
   if (message.author.bot) return;
@@ -102,9 +127,9 @@ export async function handleModmailDM(message, client) {
 
     return message.reply(
       "📩 **ModMail**\n\n" +
-      "What is this about?\n\n" +
-      `${types}\n\n` +
-      "Reply with the number."
+        "What is this about?\n\n" +
+        `${types}\n\n` +
+        "Reply with the number."
     );
   }
 
@@ -145,8 +170,8 @@ export async function handleModmailDM(message, client) {
 
     return message.reply(
       `✏️ **${type}**\n` +
-      (guide ? `\n${guide}\n\n` : "\n") +
-      "Please describe your issue."
+        (guide ? `\n${guide}\n\n` : "\n") +
+        "Please describe your issue."
     );
   }
 
@@ -174,7 +199,39 @@ export async function handleModmailDM(message, client) {
 
     return message.reply(
       `✅ Your **${ticket.type}** ticket has been created.\n` +
-      "A staff member will contact you soon."
+        "A staff member will contact you soon."
     );
   }
+}
+
+/* ===================== STAFF → USER (RELAY) ===================== */
+
+export async function handleModmailThreadMessage(message) {
+  if (!message.guild || message.author.bot) return;
+
+  const tickets = await loadTickets();
+  const ticket = tickets.find(t => t.threadId === message.channel.id);
+  if (!ticket) return;
+
+  const config = await loadModmailConfig(ticket.guildId);
+  if (!config) return;
+
+  if (!isStaffThreadMessage(message, config.forumChannelId)) return;
+
+  const user = await message.client.users
+    .fetch(ticket.userId)
+    .catch(() => null);
+  if (!user) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(
+      config.anonymousStaff
+        ? "📨 Staff Reply"
+        : `📨 Reply from ${message.author.username}`
+    )
+    .setDescription(message.content || "*No text content*")
+    .setTimestamp();
+
+  await user.send({ embeds: [embed] }).catch(() => {});
 }
