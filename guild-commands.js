@@ -162,59 +162,7 @@ export const guildCommands = [
     .setName("help")
     .setDescription("Show all moderation commands"),
 
-  /* ===================== MUSIC ===================== */
-
- new SlashCommandBuilder()
-  .setName("music")
-  .setDescription("Music controls")
-  .addSubcommand(sub =>
-    sub
-      .setName("play")
-      .setDescription("Play a song")
-      .addStringOption(o =>
-        o.setName("query")
-          .setDescription("Song name or URL")
-          .setRequired(true)
-      )
-  )
-  .addSubcommand(sub =>
-    sub
-      .setName("pause")
-      .setDescription("Pause the music")
-  )
-  .addSubcommand(sub =>
-    sub
-      .setName("stop")
-      .setDescription("Stop music and leave the voice channel")
-  )
-  .addSubcommand(sub =>
-    sub
-      .setName("skip")
-      .setDescription("Skip the current song")
-  )
-  .addSubcommand(sub =>
-    sub
-      .setName("queue")
-      .setDescription("Show the music queue")
-  )
-  .addSubcommand(sub =>
-    sub
-      .setName("current")
-      .setDescription("Show the currently playing song")
-  )
-  .addSubcommand(sub =>
-    sub
-      .setName("volume")
-      .setDescription("Set the music volume")
-      .addIntegerOption(o =>
-        o.setName("level")
-          .setDescription("Volume (0–100)")
-          .setRequired(true)
-          .setMinValue(0)
-          .setMaxValue(100)
-      )
-  ),
-
+  
   /* ===================== LEVEL ===================== */
  
   new SlashCommandBuilder()
@@ -244,6 +192,7 @@ export const guildCommands = [
 
 
 ].map(cmd => cmd.toJSON());
+
 
 
 
