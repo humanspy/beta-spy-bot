@@ -1,60 +1,47 @@
-import { EmbedBuilder } from "discord.js";
-import {
-  hasPermission,
-  getHighestStaffRole,
-  addWarning,
-  loadWarnings,
-  saveWarnings,
-  sendLog,
-} from "../core.js";
+import { hasPermission } from "../permissions.js";
+import { addWarning } from "../core.js";
 
 export default async function warn(interaction, sub) {
-  if (sub === "add") {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+
     if (!hasPermission(interaction.member, "warn")) {
-      const role = getHighestStaffRole(interaction.member);
-      return interaction.reply({ content: `❌ ${role?.name}`, flags: 64, });
+      return interaction.editReply("❌ You do not have permission to warn users.");
     }
 
-    const user = interaction.options.getUser("user");
-    const reason = interaction.options.getString("reason");
-    const severity = interaction.options.getString("severity") ?? "moderate";
+    if (sub === "add") {
+      const user = interaction.options.getUser("user");
+      const reason = interaction.options.getString("reason");
+      const severity = interaction.options.getString("severity") ?? "moderate";
+      const silent = interaction.options.getBoolean("silent") ?? false;
 
-    const caseNumber = await addWarning(
-      interaction.guild.id,
-      user.id,
-      user.username,
-      interaction.user.id,
-      interaction.user.tag,
-      reason,
-      severity
-    );
+      await addWarning({
+        guild: interaction.guild,
+        moderator: interaction.user,
+        target: user,
+        reason,
+        severity,
+        silent,
+      });
 
-    const embed = new EmbedBuilder()
-      .setTitle("⚠️ Warning Issued")
-      .setColor(0xffa500)
-      .setDescription(`**${user.tag}**\n${reason}`)
-      .addFields({ name: "Case", value: `#${caseNumber}` })
-      .setTimestamp();
-
-    await sendLog(interaction.guild, embed);
-    return interaction.reply({ embeds: [embed], flags: 64, });
-  }
-
-  if (sub === "remove") {
-    const user = interaction.options.getUser("user");
-    const warnings = await loadWarnings(interaction.guild.id);
-    const filtered = warnings.filter(w => w.userId !== user.id);
-
-    if (filtered.length === warnings.length) {
-      return interaction.reply({ content: "❌ No warnings.", flags: 64, });
+      return interaction.editReply(`✅ **${user.tag}** has been warned.`);
     }
 
-    await saveWarnings(interaction.guild.id, filtered);
-    return interaction.reply({
-      content: `✅ Cleared warnings for ${user.tag}`,
-      flags: 64,
-    });
+    if (sub === "remove") {
+      const user = interaction.options.getUser("user");
+
+      await addWarning({
+        guild: interaction.guild,
+        moderator: interaction.user,
+        target: user,
+        removeAll: true,
+      });
+
+      return interaction.editReply(`✅ All warnings for **${user.tag}** were cleared.`);
+    }
+
+  } catch (err) {
+    console.error("[WARN]", err);
+    return interaction.editReply("❌ Failed to execute warn command.");
   }
 }
-
-
