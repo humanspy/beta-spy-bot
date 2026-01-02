@@ -11,9 +11,10 @@ export async function handleModmail(interaction) {
 import {
   handleModmailDM,
   handleModmailThreadMessage,
-} from "./dmhandler.js";
+} from "./dmHandler.js";
 
 client.on("messageCreate", async message => {
   await handleModmailDM(message, client);
   await handleModmailThreadMessage(message);
 });
+
