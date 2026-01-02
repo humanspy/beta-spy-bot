@@ -1,173 +1,286 @@
 import {
-  EmbedBuilder,
+  SlashCommandBuilder,
   PermissionFlagsBits,
+  EmbedBuilder,
   ChannelType,
 } from "discord.js";
-import { saveModmailConfig } from "../config.js";
 
-/*
-pending[userId] = {
-  guildId,
-  step: "forum" | "count" | "type_name" | "type_guide",
-  forumChannelId,
-  remaining,
-  currentType,
-  types: []
+import {
+  saveModmailConfig,
+  loadModmailConfig,
+} from "../config.js";
+
+/* ===================== CONSTANTS ===================== */
+
+const WIZARD_TIMEOUT = 5 * 60 * 1000;
+const MAX_EXTRA_TYPES = 7;
+
+/* ===================== HELPERS ===================== */
+
+function stepEmbed(title, description, footer) {
+  return new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(title)
+    .setDescription(description)
+    .setFooter({ text: footer });
 }
-*/
-const pending = new Map();
 
-/* ===================== SLASH COMMAND ENTRY ===================== */
+async function awaitUserMessage(interaction, embed) {
+  await interaction.followUp({ embeds: [embed], flags: 64 });
 
-export default async function modmailSetup(interaction) {
-  if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply({
-      content: "❌ You need Administrator permissions to set up ModMail.",
-      ephemeral: true,
-    });
-  }
-
-  pending.set(interaction.user.id, {
-    guildId: interaction.guild.id,
-    step: "forum",
-    types: [],
+  const collected = await interaction.channel.awaitMessages({
+    max: 1,
+    time: WIZARD_TIMEOUT,
+    filter: m => m.author.id === interaction.user.id,
   });
 
-  const embed = new EmbedBuilder()
-    .setTitle("📨 ModMail Setup")
-    .setDescription(
-      "Setup has started.\n\n" +
-      "**Step 1:** Mention the **forum channel** to use for ModMail tickets.\n\n" +
-      "Example:\n`#modmail-forum`\n\n" +
-      "_Reply in this channel to continue._"
-    )
-    .setColor(0x2563eb);
+  const msg = collected.first();
+  if (!msg) throw new Error("timeout");
 
-  await interaction.reply({ embeds: [embed] });
+  await msg.delete().catch(() => {});
+  return msg;
 }
 
-/* ===================== MESSAGE-BASED WIZARD ===================== */
+async function askForum(interaction) {
+  const embed = stepEmbed(
+    "📁 ModMail Forum",
+    "Please **mention the forum channel** that should be used for ModMail tickets.\n\n" +
+      "Example:\n`#modmail-forum`",
+    "Waiting for forum channel…"
+  );
 
-export async function handleModmailSetupMessage(message) {
-  if (!message.guild) return;
-  if (message.author.bot) return;
+  const msg = await awaitUserMessage(interaction, embed);
+  const channel = msg.mentions.channels.first();
 
-  const state = pending.get(message.author.id);
-  if (!state || state.guildId !== message.guild.id) return;
+  if (!channel || channel.type !== ChannelType.GuildForum) {
+    throw new Error("invalid_forum");
+  }
 
-  /* ---------- STEP 1: FORUM CHANNEL ---------- */
+  return channel.id;
+}
 
-  if (state.step === "forum") {
-    const forum = message.mentions.channels.first();
+async function askExtraTypeCount(interaction) {
+  const embed = stepEmbed(
+    "🎟️ Ticket Types",
+    "**Default ticket types (always included):**\n" +
+      "• General\n" +
+      "• Bug Report\n" +
+      "• Ban Appeal\n\n" +
+      `How many **extra ticket types** do you want?\n\n` +
+      `**0–${MAX_EXTRA_TYPES} only**`,
+    "Waiting for number…"
+  );
 
-    if (!forum || forum.type !== ChannelType.GuildForum) {
-      return message.reply("❌ Please mention a valid **forum channel**.");
-    }
+  const msg = await awaitUserMessage(interaction, embed);
+  const count = Number(msg.content.trim());
 
-    state.forumChannelId = forum.id;
-    state.step = "count";
+  if (Number.isNaN(count) || count < 0 || count > MAX_EXTRA_TYPES) {
+    throw new Error("invalid_count");
+  }
 
-    const embed = new EmbedBuilder()
-      .setTitle("🎟️ Ticket Types")
-      .setDescription(
-        "**Default ticket types (always included):**\n" +
-        "• General\n" +
-        "• Bug Report\n" +
-        "• Ban Appeal\n\n" +
-        "How many **extra ticket types** do you want?\n\n" +
-        "**0–7 only**\n\n" +
-        "Reply with a number."
+  return count;
+}
+
+async function askTypeName(interaction, index, total) {
+  const embed = stepEmbed(
+    `✏️ Ticket Type ${index}/${total}`,
+    "Send the **name** of this ticket type.",
+    "Waiting for name…"
+  );
+
+  const msg = await awaitUserMessage(interaction, embed);
+  return msg.content.trim();
+}
+
+async function askTypeGuide(interaction, typeName) {
+  const embed = stepEmbed(
+    `📝 Guide for ${typeName}`,
+    "Send a **guide message** for this type, or type `skip`.",
+    "Waiting for guide…"
+  );
+
+  const msg = await awaitUserMessage(interaction, embed);
+  if (msg.content.toLowerCase() === "skip") return null;
+  return msg.content.trim();
+}
+
+async function askAnonymousMode(interaction) {
+  const embed = stepEmbed(
+    "🕵️ Anonymous Staff Replies",
+    "Should staff replies appear **anonymous** in DMs?\n\n" +
+      "**yes** → Replies appear from *Staff*\n" +
+      "**no** → Show staff username\n\n" +
+      "Reply with `yes` or `no`.",
+    "Waiting for choice…"
+  );
+
+  const msg = await awaitUserMessage(interaction, embed);
+  const value = msg.content.toLowerCase().trim();
+
+  if (!["yes", "no"].includes(value)) {
+    throw new Error("invalid_boolean");
+  }
+
+  return value === "yes";
+}
+
+/* ===================== COMMAND ===================== */
+
+export default {
+  data: new SlashCommandBuilder()
+    .setName("modmail")
+    .setDescription("Configure the ModMail system")
+    .addStringOption(opt =>
+      opt
+        .setName("action")
+        .setDescription("What to do")
+        .addChoices(
+          { name: "Setup", value: "setup" },
+          { name: "Settings", value: "settings" }
+        )
+    ),
+
+  async execute(interaction) {
+    const guildId = interaction.guild.id;
+    const action = interaction.options.getString("action") ?? "setup";
+
+    /* ===================== PERMISSION CHECK ===================== */
+
+    if (
+      !interaction.member.permissions.has(
+        PermissionFlagsBits.Administrator
       )
-      .setColor(0x2563eb);
-
-    return message.reply({ embeds: [embed] });
-  }
-
-  /* ---------- STEP 2: COUNT ---------- */
-
-  if (state.step === "count") {
-    const count = Number(message.content.trim());
-
-    if (Number.isNaN(count) || count < 0 || count > 7) {
-      return message.reply("❌ Please reply with a number between 0 and 7.");
+    ) {
+      return interaction.reply({
+        embeds: [
+          stepEmbed(
+            "❌ Missing Permission",
+            "Administrator permission is required.",
+            "Permission check failed"
+          ),
+        ],
+        flags: 64,
+      });
     }
 
-    state.remaining = count;
-    state.step = count === 0 ? "finalize" : "type_name";
+    /* ===================== SETTINGS (TOGGLE ANON) ===================== */
 
-    if (count === 0) return finalizeSetup(message, state);
+    if (action === "settings") {
+      const config = await loadModmailConfig(guildId);
 
-    return message.reply(
-      `✏️ Send the **name** for extra ticket type #${state.types.length + 1}`
-    );
-  }
+      if (!config) {
+        return interaction.reply({
+          embeds: [
+            stepEmbed(
+              "❌ ModMail Not Configured",
+              "Run ModMail setup first.",
+              "No configuration found"
+            ),
+          ],
+          flags: 64,
+        });
+      }
 
-  /* ---------- STEP 3: TYPE NAME ---------- */
+      config.anonymousStaff = !config.anonymousStaff;
+      await saveModmailConfig(guildId, config);
 
-  if (state.step === "type_name") {
-    state.currentType = { name: message.content.trim() };
-    state.step = "type_guide";
-
-    return message.reply(
-      "📝 Send a **guide** for this ticket type, or type `skip`."
-    );
-  }
-
-  /* ---------- STEP 4: TYPE GUIDE ---------- */
-
-  if (state.step === "type_guide") {
-    if (message.content.toLowerCase() !== "skip") {
-      state.currentType.guide = message.content.trim();
+      return interaction.reply({
+        embeds: [
+          stepEmbed(
+            "⚙️ ModMail Settings Updated",
+            `Anonymous staff replies are now **${
+              config.anonymousStaff ? "ENABLED" : "DISABLED"
+            }**.`,
+            "Setting saved"
+          ),
+        ],
+        flags: 64,
+      });
     }
 
-    state.types.push(state.currentType);
-    state.currentType = null;
-    state.remaining--;
+    /* ===================== SETUP ===================== */
 
-    if (state.remaining > 0) {
-      state.step = "type_name";
-      return message.reply(
-        `✏️ Send the **name** for extra ticket type #${state.types.length + 1}`
-      );
+    const existing = await loadModmailConfig(guildId);
+
+    if (existing) {
+      return interaction.reply({
+        embeds: [
+          stepEmbed(
+            "⚠️ ModMail Already Configured",
+            "ModMail is already set up for this server.\n\n" +
+              "Use `/modmail settings` to toggle anonymous mode.",
+            "Setup blocked"
+          ),
+        ],
+        flags: 64,
+      });
     }
 
-    return finalizeSetup(message, state);
-  }
-}
+    await interaction.reply({
+      embeds: [
+        stepEmbed(
+          "🧙 ModMail Setup Started",
+          "Follow the steps below to configure ModMail.\n\n" +
+            "⏳ This setup will timeout after 5 minutes.",
+          "Setup wizard active"
+        ),
+      ],
+      flags: 64,
+    });
 
-/* ===================== FINALIZE ===================== */
+    const config = {
+      enabled: true,
+      forumChannelId: null,
+      anonymousStaff: false,
+      appealLimit: 2,
+      ticketTypes: {
+        General: { guide: "Describe your issue clearly." },
+        "Bug Report": { guide: "Describe the bug and steps to reproduce it." },
+        "Ban Appeal": { guide: "Explain why your ban should be reviewed." },
+      },
+    };
 
-async function finalizeSetup(message, state) {
-  const ticketTypes = {
-    General: { guide: "Describe your issue clearly." },
-    "Bug Report": { guide: "Describe the bug and steps to reproduce it." },
-    "Ban Appeal": { guide: "Explain why your ban should be reviewed." },
-  };
+    try {
+      config.forumChannelId = await askForum(interaction);
 
-  for (const t of state.types) {
-    ticketTypes[t.name] = { guide: t.guide };
-  }
+      const extraCount = await askExtraTypeCount(interaction);
 
-  await saveModmailConfig(state.guildId, {
-    enabled: true,
-    forumChannelId: state.forumChannelId,
-    anonymousStaff: false,
-    appealLimit: 2,
-    ticketTypes,
-  });
+      for (let i = 0; i < extraCount; i++) {
+        const name = await askTypeName(interaction, i + 1, extraCount);
+        const guide = await askTypeGuide(interaction, name);
+        config.ticketTypes[name] = { guide };
+      }
 
-  pending.delete(message.author.id);
+      config.anonymousStaff = await askAnonymousMode(interaction);
+    } catch {
+      return interaction.followUp({
+        embeds: [
+          stepEmbed(
+            "❌ Setup Cancelled",
+            "Invalid input or timeout occurred.\nNo changes were saved.",
+            "Setup aborted"
+          ),
+        ],
+        flags: 64,
+      });
+    }
 
-  const embed = new EmbedBuilder()
-    .setTitle("✅ ModMail Setup Complete")
-    .setDescription(
-      `📁 Forum: <#${state.forumChannelId}>\n\n` +
-      "🎟️ Ticket Types:\n" +
-      Object.keys(ticketTypes).map(t => `• ${t}`).join("\n")
-    )
-    .setColor(0x16a34a);
+    await saveModmailConfig(guildId, config);
 
-  await message.reply({ embeds: [embed] });
-}
-
-
+    await interaction.followUp({
+      embeds: [
+        stepEmbed(
+          "🎉 ModMail Setup Complete",
+          "ModMail has been configured successfully.\n\n" +
+            "📨 Users can now open tickets via DM\n" +
+            "🔔 Tickets will ping @everyone\n" +
+            `🕵️ Anonymous replies: **${
+              config.anonymousStaff ? "ENABLED" : "DISABLED"
+            }**`,
+          "Setup complete"
+        ),
+      ],
+      flags: 64,
+    });
+  },
+};
