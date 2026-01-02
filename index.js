@@ -109,14 +109,16 @@ client.on("interactionCreate", async interaction => {
 /* ===================== MESSAGE CREATE ===================== */
 
 client.on("messageCreate", async message => {
+  // ⛔ Ignore bots
+  if (message.author.bot) return;
+
   // 🔢 Counting system (hard-gated by setup)
   await handleCounting(message);
 
-  // ⛔ Ignore bots for everything else
-  if (message.author.bot) return;
-
-  // (You can add more message-based logic here later if needed)
+  // ⭐ Leveling system (always active)
+  await handleLeveling(message);
 });
+
 
 
 /* ===================== LOGIN ===================== */
