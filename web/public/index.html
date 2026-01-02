@@ -2,163 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Spy Group – Case Viewer</title>
+  <title>Spy Group – Login</title>
+  <link rel="icon" href="/favicon.ico">
 
-  <!-- ✅ FAVICON (also used as logo) -->
-  <link rel="icon" type="image/png" href="/favicon.png">
-
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
-      padding: 20px;
-    }
-
-    button {
-      background: #2563eb;
-      color: white;
-      border: none;
-      padding: 6px 10px;
-      margin: 4px;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-
-    button.secondary { background: #475569; }
-    button.danger { background: #dc2626; }
-
-    input, select {
-      padding: 6px;
-      border-radius: 4px;
-      border: none;
-      margin-right: 6px;
-    }
-
-    .box {
-      background: #020617;
-      padding: 12px;
-      border-radius: 6px;
-      margin-top: 12px;
-    }
-
-    .case {
-      border-bottom: 1px solid #1e293b;
-      padding: 10px;
-      cursor: pointer;
-    }
-
-    .case:hover { background: #020617cc; }
-
-    .tag {
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 12px;
-      background: #334155;
-      margin-right: 6px;
-    }
-
-    .link {
-      color: #38bdf8;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-
-    .hidden { display: none; }
-
-    .split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    /* ✅ Header layout */
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .header img {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-    }
-  </style>
+  <link rel="stylesheet" href="/style/base.css">
+  <link rel="stylesheet" href="/style/buttons.css">
+  <link rel="stylesheet" href="/style/components.css">
 </head>
 
 <body>
+  <div class="page">
+    <div class="card">
+      <img src="/logo.png" width="120" height="120" alt="Logo">
+      <h2>Spy Group Case System</h2>
 
-<!-- ✅ LOGO + TITLE -->
-<div class="header">
-  <img src="/favicon.png" alt="Spy Group Logo">
-  <h1 style="margin:0;">Spy Group – Case Viewer</h1>
-</div>
-
-<div id="userBar" class="box" style="display:flex;align-items:center;justify-content:space-between;">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <img id="userAvatar" width="40" height="40"
-         style="border-radius:50%;display:none;">
-    <div>
-      <div><strong id="userName">Not logged in</strong></div>
-      <div style="font-size:12px;color:#94a3b8;" id="userRole">—</div>
+      <a href="/auth/login">
+        <button>Login with Discord</button>
+      </a>
     </div>
   </div>
-
-  <div id="appealBox" class="box hidden">
-    <strong>Ban Appeals</strong><br>
-    Used: <span id="appealsUsed">0</span><br>
-    Remaining: <span id="appealsRemaining">0</span>
-  </div>
-
-  <button class="secondary" onclick="logout()">Logout</button>
-</div>
-
-<a href="/auth/login">
-  <button class="secondary">Login with Discord</button>
-</a>
-
-<h2>Servers</h2>
-<div id="guilds" class="box"></div>
-
-<h2>Filters</h2>
-<div class="box">
-  <select id="typeFilter" onchange="renderCases()">
-    <option value="">All actions</option>
-    <option value="warn">Warn</option>
-    <option value="ban">Ban</option>
-    <option value="hackban">Hackban</option>
-    <option value="timeout">Timeout</option>
-  </select>
-
-  <input id="searchInput" placeholder="Search reason" oninput="renderCases()">
-</div>
-
-<h2 id="actionsHeader" class="hidden">Actions</h2>
-<div id="actionsBox" class="box hidden">
-  <input id="targetUserId" placeholder="User ID">
-  <input id="reasonInput" placeholder="Reason"><br><br>
-
-  <button id="hackbanBtn" onclick="requestHackban()">Hackban</button>
-  <button id="unbanBtn" onclick="requestUnban()">Unban</button>
-</div>
-
-<div class="split">
-  <div class="box">
-    <h3>Cases</h3>
-    <div id="caseList"></div>
-  </div>
-
-  <div class="box">
-    <h3>Details</h3>
-    <div id="details">Select a case or user.</div>
-  </div>
-</div>
-
-<script>
-/* === unchanged JS logic (intentionally untouched) === */
-</script>
-
 </body>
 </html>

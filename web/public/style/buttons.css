@@ -1,0 +1,26 @@
+button {
+  background: #0b303b;
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background .15s ease, transform .05s ease;
+}
+
+button:hover {
+  background: #09424f;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button.secondary {
+  background: #475569;
+}
+
+button.danger {
+  background: #dc2626;
+}

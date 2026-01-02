@@ -1,0 +1,24 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  background: linear-gradient(
+    90deg,
+    #b30000 0%,
+    #ff0000 45%,
+    #ff3b1f 70%,
+    #ffd6cf 100%
+  );
+  color: #0b303b;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
