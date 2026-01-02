@@ -1,10 +1,19 @@
+import { handleModmailCommands } from "./commands/index.js";
 import {
   handleModmailDM,
   handleModmailThreadMessage,
 } from "./dmHandler.js";
 
 /**
- * Initialize ModMail listeners
+ * Slash-command entry for router.js
+ */
+export async function handleModmail(interaction) {
+  if (!interaction.isChatInputCommand()) return false;
+  return handleModmailCommands(interaction);
+}
+
+/**
+ * Initialize ModMail message listeners
  * @param {import("discord.js").Client} client
  */
 export function initModmail(client) {
@@ -17,7 +26,7 @@ export function initModmail(client) {
       await handleModmailDM(message, client);
       await handleModmailThreadMessage(message);
     } catch {
-      // silent – modmail must never crash the bot
+      // ModMail must never crash the bot
     }
   });
 }
