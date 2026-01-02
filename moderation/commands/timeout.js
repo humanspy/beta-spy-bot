@@ -1,5 +1,5 @@
 import { hasPermission, dmAffectedUser } from "../core.js";
-import { parseDuration } from "../utils/duration.js";
+import { parseDurationChoice } from "../utils/duration.js";
 
 export default async function timeout(interaction, sub) {
   try {
