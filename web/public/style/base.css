@@ -1,11 +1,13 @@
-html, body {
-  margin: 0;
-  padding: 0;
+html {
   height: 100%;
-  font-family: system-ui, sans-serif;
 }
 
 body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, sans-serif;
+
   background: linear-gradient(
     90deg,
     #b30000 0%,
@@ -13,12 +15,21 @@ body {
     #ff3b1f 70%,
     #ffd6cf 100%
   );
+
   color: #0b303b;
 }
 
+/* Centered pages (login) */
 .page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Normal pages (servers / cases) */
+.content {
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
 }
