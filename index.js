@@ -6,10 +6,6 @@ import { execSync } from "child_process";
 import { existsSync } from "fs";
 import "./web/server.js";
 
-console.log(execSync("which ffmpeg").toString());
-console.log(execSync("ffmpeg -version").toString());
-
-
 import {
   Client,
   GatewayIntentBits,
@@ -21,12 +17,20 @@ import { organizeCasesToFolder } from "./moderation/organize-cases.js";
 import { ensureDataPath } from "./utils/storage.js";
 import { getStaffConfig } from "./moderation/staffConfig.js";
 
-await ensureDataPath();
-
-
 import { handleCounting } from "./counting/index.js";
 import { handleLeveling } from "./profile/level/index.js";
 
+import { handleLevelRoleComponents } from "./profile/level/core.js";
+import { handleModmailCore } from "./modmail/core.js";
+import { initModmail } from "./modmail/index.js";
+import { routeInteraction } from "./router.js";
+
+/* ===================== PRE-FLIGHT ===================== */
+
+console.log(execSync("which ffmpeg").toString());
+console.log(execSync("ffmpeg -version").toString());
+
+await ensureDataPath();
 
 /* ===================== DEPLOY COMMANDS ===================== */
 
@@ -40,7 +44,6 @@ if (existsSync("./deploy-commands.js")) {
   }
 }
 
-
 /* ===================== DISCORD CLIENT ===================== */
 
 const client = new Client({
@@ -50,34 +53,41 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.DirectMessages, // REQUIRED for ModMail
   ],
 });
 
+/* ===================== MODMAIL INIT ===================== */
+
+initModmail(client);
+
+/* ===================== READY ===================== */
+
 client.once(Events.ClientReady, async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+
   client.user.setPresence({
     activities: [{ name: "DM to open Ticket", type: 2 }],
     status: "dnd",
   });
 
   try {
-    await organizeCasesToFolder(await loadAllCases());
-  } catch {}
+    await organizeCasesToFolder();
+  } catch {
+    // case sync must never crash startup
+  }
 });
+
 /* ===================== INTERACTIONS ===================== */
-import { handleLevelRoleComponents } from "./profile/level/core.js";
-import { handleModmailCore } from "./modmail/core.js";
-import { routeInteraction } from "./router.js";
 
 client.on("interactionCreate", async interaction => {
   try {
-    /* ===================== COMPONENT INTERACTIONS ===================== */
-    // Let global component handlers run if they want to
+    /* ===================== COMPONENTS ===================== */
+
     if (await handleLevelRoleComponents(interaction)) return;
     if (await handleModmailCore(interaction)) return;
 
     /* ===================== SLASH COMMANDS ===================== */
-    // IMPORTANT: do NOT return for non-chat interactions
 
     if (interaction.isChatInputCommand()) {
       if (!interaction.inGuild()) {
@@ -102,24 +112,17 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-
-
-
-
 /* ===================== MESSAGE CREATE ===================== */
 
 client.on("messageCreate", async message => {
-  // ⛔ Ignore bots
   if (message.author.bot) return;
 
-  // 🔢 Counting system (hard-gated by setup)
+  // 🔢 Counting system (setup-gated)
   await handleCounting(message);
 
   // ⭐ Leveling system (always active)
   await handleLeveling(message);
 });
-
-
 
 /* ===================== LOGIN ===================== */
 
@@ -128,7 +131,10 @@ if (!process.env.DISCORD_BOT_TOKEN) {
   process.exit(1);
 }
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+await client.login(process.env.DISCORD_BOT_TOKEN);
+
+/* ===================== OPTIONAL MUSIC PLAYER ===================== */
+/*
+import { setupPlayer } from "./music/player.js";
 client.player = setupPlayer(client);
-
-
+*/

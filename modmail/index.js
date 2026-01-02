@@ -1,20 +1,23 @@
-import { handleModmailCommands } from "./commands/index.js";
-
-export async function handleModmail(interaction) {
-  // Only handle chat input commands
-  if (!interaction.isChatInputCommand()) return false;
-
-  // Let the commands router decide
-  return handleModmailCommands(interaction);
-}
-
 import {
   handleModmailDM,
   handleModmailThreadMessage,
 } from "./dmHandler.js";
 
-client.on("messageCreate", async message => {
-  await handleModmailDM(message, client);
-  await handleModmailThreadMessage(message);
-});
+/**
+ * Initialize ModMail listeners
+ * @param {import("discord.js").Client} client
+ */
+export function initModmail(client) {
+  if (!client) {
+    throw new Error("initModmail requires a Discord client");
+  }
 
+  client.on("messageCreate", async message => {
+    try {
+      await handleModmailDM(message, client);
+      await handleModmailThreadMessage(message);
+    } catch {
+      // silent – modmail must never crash the bot
+    }
+  });
+}
