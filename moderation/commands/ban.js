@@ -1,95 +1,52 @@
-import { EmbedBuilder } from "discord.js";
-import {
-  hasPermission,
-  getHighestStaffRole,
-  createCase,
-  validateAndUseOverrideCode,
-  sendLog,
-} from "../core.js";
+import { hasPermission } from "../permissions.js";
 
 export default async function ban(interaction, sub) {
-  if (sub !== "add") return;
-
-  if (!hasPermission(interaction.member, "ban")) {
-    const role = getHighestStaffRole(interaction.member);
-    return interaction.reply({
-      content: `❌ ${role?.name}`,
-      flags: 64,
-    });
-  }
-
-  const targetId = interaction.options.getString("target")?.match(/\d+/)?.[0];
-  if (!targetId) {
-    return interaction.reply({
-      content: "❌ Invalid user",
-      flags: 64,
-    });
-  }
-
-  const reason = interaction.options.getString("reason") || "No reason provided";
-  const override = interaction.options.getString("override_code");
-
-  if (override && !(await validateAndUseOverrideCode(override, interaction.user.id))) {
-    return interaction.reply({
-      content: "❌ Invalid override",
-      flags: 64,
-    });
-  }
-
-  /* ===================== DM BAN NOTICE ===================== */
-
   try {
-    const user = await interaction.client.users.fetch(targetId);
+    await interaction.deferReply({ ephemeral: true });
 
-    const dmEmbed = new EmbedBuilder()
-      .setColor(0xe74c3c)
-      .setTitle(`You have been banned from ${interaction.guild.name}`)
-      .setDescription(
-        `**Reason:** ${reason}\n\n` +
-        `If you believe this ban was a mistake, you may **appeal by replying to this DM**.\n\n` +
-        `Please explain your situation clearly and respectfully.`
-      )
-      .setFooter({ text: "Ban Appeal System" })
-      .setTimestamp();
+    if (!hasPermission(interaction.member, "ban")) {
+      return interaction.editReply("❌ You do not have permission to ban users.");
+    }
 
-    await user.send({ embeds: [dmEmbed] });
-  } catch {
-    // User has DMs closed or blocked the bot — ignore
+    if (sub === "add") {
+      const target = interaction.options.getString("target");
+      const reason = interaction.options.getString("reason");
+      const hackban = interaction.options.getBoolean("hackban") ?? false;
+      const deleteDays = interaction.options.getInteger("delete_days") ?? 0;
+
+      if (hackban) {
+        await interaction.guild.members.ban(target, {
+          reason,
+          deleteMessageSeconds: deleteDays * 86400,
+        });
+
+        return interaction.editReply(`🔨 User ID **${target}** has been hackbanned.`);
+      }
+
+      const member = await interaction.guild.members.fetch(target).catch(() => null);
+      if (!member) {
+        return interaction.editReply("❌ User not found.");
+      }
+
+      await member.ban({
+        reason,
+        deleteMessageSeconds: deleteDays * 86400,
+      });
+
+      return interaction.editReply(`🔨 **${member.user.tag}** has been banned.`);
+    }
+
+    if (sub === "remove") {
+      const userId = interaction.options.getString("user_id");
+      const reason = interaction.options.getString("reason") ?? "Unbanned";
+
+      await interaction.guild.members.unban(userId, reason);
+
+      return interaction.editReply(`✅ User **${userId}** has been unbanned.`);
+    }
+
+  } catch (err) {
+    console.error("[BAN]", err);
+    return interaction.editReply("❌ Failed to execute ban command.");
   }
-
-  /* ===================== EXECUTE BAN ===================== */
-
-  await interaction.guild.members.ban(targetId, { reason });
-
-  /* ===================== CASE CREATION ===================== */
-
-  const caseNumber = await createCase(
-    interaction.guild.id,
-    "BAN",
-    targetId,
-    targetId,
-    interaction.user.id,
-    interaction.user.tag,
-    reason
-  );
-
-  /* ===================== LOGGING ===================== */
-
-  const embed = new EmbedBuilder()
-    .setTitle("🔨 User Banned")
-    .setColor(0xe74c3c)
-    .addFields(
-      { name: "User ID", value: targetId, inline: true },
-      { name: "Moderator", value: interaction.user.tag, inline: true },
-      { name: "Case", value: `#${caseNumber}`, inline: true },
-      { name: "Reason", value: reason }
-    )
-    .setTimestamp();
-
-  await sendLog(interaction.guild, embed);
-
-  return interaction.reply({
-    embeds: [embed],
-    flags: 64,
-  });
 }
