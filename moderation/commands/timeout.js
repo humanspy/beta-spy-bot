@@ -1,81 +1,45 @@
-import {
-  hasPermission,
-  getHighestStaffRole,
-  createCase,
-} from "../core.js";
-import {
-  parseDurationChoice,
-  getDurationLabel,
-} from "../utils/duration.js";
+import { hasPermission } from "../permissions.js";
+import { parseDuration } from "../utils/time.js";
 
 export default async function timeout(interaction, sub) {
-  /* ===================== ADD TIMEOUT ===================== */
-  if (sub === "add") {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+
     if (!hasPermission(interaction.member, "timeout")) {
-      const role = getHighestStaffRole(interaction.member);
-      return interaction.reply({
-        content: `❌ Role **${role?.name ?? "Unknown"}** has no permission.`,
-        flags: 64,
-      });
+      return interaction.editReply("❌ You do not have permission to timeout users.");
     }
 
-    const targetUser = interaction.options.getUser("user");
-    const durationChoice = interaction.options.getString("duration");
-    const reason =
-      interaction.options.getString("reason") || "No reason provided";
-
-    const durationMinutes = parseDurationChoice(durationChoice);
-    if (!durationMinutes || durationMinutes <= 0) {
-      return interaction.reply({
-        content: "❌ Invalid duration.",
-        flags: 64,
-      });
+    const member = interaction.options.getMember("user");
+    if (!member) {
+      return interaction.editReply("❌ User not found in this server.");
     }
 
-    const member = await interaction.guild.members.fetch(targetUser.id);
-    await member.timeout(durationMinutes * 60 * 1000, reason);
+    if (sub === "add") {
+      const durationRaw = interaction.options.getString("duration");
+      const reason = interaction.options.getString("reason");
 
-    const caseNumber = await createCase(
-      interaction.guild.id,
-      "TIMEOUT",
-      targetUser.id,
-      targetUser.username,
-      interaction.user.id,
-      interaction.user.tag,
-      reason,
-      null,
-      durationMinutes
-    );
+      const durationMs = parseDuration(durationRaw);
+      if (!durationMs) {
+        return interaction.editReply("❌ Invalid duration.");
+      }
 
-    return interaction.reply({
-      content:
-        `⏱️ **${targetUser.tag}** timed out for ` +
-        `**${getDurationLabel(durationMinutes)}** (Case #${caseNumber})`,
-      flags: 64,
-    });
-  }
+      await member.timeout(durationMs, reason);
 
-  /* ===================== REMOVE TIMEOUT ===================== */
-  if (sub === "remove") {
-    if (!hasPermission(interaction.member, "timeout")) {
-      const role = getHighestStaffRole(interaction.member);
-      return interaction.reply({
-        content: `❌ Role **${role?.name ?? "Unknown"}** has no permission.`,
-        flags: 64,
-      });
+      return interaction.editReply(
+        `⏱️ **${member.user.tag}** has been timed out.\nReason: ${reason}`
+      );
     }
 
-    const targetUser = interaction.options.getUser("user");
-    const reason =
-      interaction.options.getString("reason") || "Timeout removed";
+    if (sub === "remove") {
+      const reason = interaction.options.getString("reason") ?? "Timeout removed";
 
-    const member = await interaction.guild.members.fetch(targetUser.id);
-    await member.timeout(null, reason);
+      await member.timeout(null, reason);
 
-    return interaction.reply({
-      content: `✅ Timeout removed for **${targetUser.tag}**`,
-      flags: 64,
-    });
+      return interaction.editReply(`✅ Timeout removed for **${member.user.tag}**.`);
+    }
+
+  } catch (err) {
+    console.error("[TIMEOUT]", err);
+    return interaction.editReply("❌ Failed to execute timeout command.");
   }
 }
-
