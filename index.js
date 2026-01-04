@@ -25,6 +25,11 @@ import { handleModmailCore } from "./modmail/core.js";
 import { initModmail } from "./modmail/index.js";
 import { routeInteraction } from "./router.js";
 
+import { testDatabaseConnection } from "./database/mysql.js";
+
+await testDatabaseConnection();
+
+
 /* ===================== PRE-FLIGHT ===================== */
 
 console.log(execSync("which ffmpeg").toString());

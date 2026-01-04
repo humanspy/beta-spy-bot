@@ -21,6 +21,17 @@ import { enableCounting } from "../../counting/storage.js";
 import { hasPermission } from "../core.js";
 import { guildCommands } from "../../guild-commands.js";
 
+import { fetchSetupMessage } from "../core.js";
+
+const msg = await fetchSetupMessage(interaction);
+if (!msg) {
+  return interaction.followUp({
+    content: "❌ Setup timed out.",
+    ephemeral: true,
+  });
+}
+
+
 /* ===================== CONSTANTS ===================== */
 
 const PERMISSIONS = [

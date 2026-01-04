@@ -1,14 +1,6 @@
-import fs from "fs/promises";
-import path from "path";
+import { pool } from "../database/mysql.js";
 import { EmbedBuilder } from "discord.js";
 import { getStaffConfig } from "./staffConfig.js";
-import { organizeCasesToFolder } from "./organize-cases.js";
-
-/* ===================== PATHS ===================== */
-
-export const DATA_DIR = "./data/moderation";
-export const CASES_FILE = path.join(DATA_DIR, "cases.json");
-export const OVERRIDE_FILE = path.join(DATA_DIR, "overrideCodes.json");
 
 /* ===================== BOT OWNERS ===================== */
 
@@ -26,54 +18,52 @@ export function isBotOwner(memberOrUserId) {
   return Boolean(botOwners[id]);
 }
 
-/* ===================== SAFE HELPERS ===================== */
+/* ===================== SETUP MESSAGE HANDLER ===================== */
 
-export async function safe(fn, fallback = null) {
+/**
+ * Fetch a single message from the setup command author
+ * Used only for interactive setup flows
+ *
+ * @param {import("discord.js").ChatInputCommandInteraction} interaction
+ * @param {number} timeoutMs
+ * @returns {Promise<import("discord.js").Message|null>}
+ */
+export async function fetchSetupMessage(
+  interaction,
+  timeoutMs = 5 * 60 * 1000
+) {
   try {
-    return await fn();
+    const channel = interaction.channel;
+    if (!channel) return null;
+
+    const collected = await channel.awaitMessages({
+      max: 1,
+      time: timeoutMs,
+      filter: m =>
+        m.author.id === interaction.user.id &&
+        !m.author.bot,
+    });
+
+    const msg = collected.first();
+    if (!msg) return null;
+
+    // Clean up setup input
+    await msg.delete().catch(() => {});
+
+    return msg;
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-export async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
+/* ===================== CASE HELPERS ===================== */
 
-export async function loadJSON(file, fallback) {
-  try {
-    const raw = await fs.readFile(file, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-export async function saveJSON(file, data) {
-  await ensureDir();
-  await fs.writeFile(file, JSON.stringify(data, null, 2));
-}
-
-/* ===================== CASE STORAGE ===================== */
-
-export async function loadCases(guildId) {
-  return safe(async () => {
-    const all = await loadJSON(CASES_FILE, {});
-    if (!all[guildId]) {
-      all[guildId] = { nextCaseNumber: 1, cases: [] };
-      await saveJSON(CASES_FILE, all);
-    }
-    return all[guildId];
-  }, { nextCaseNumber: 1, cases: [] });
-}
-
-export async function saveCases(guildId, data) {
-  await safe(async () => {
-    const all = await loadJSON(CASES_FILE, {});
-    all[guildId] = data;
-    await saveJSON(CASES_FILE, all);
-    await organizeCasesToFolder(all);
-  });
+export async function getNextCaseNumber(guildId) {
+  const [rows] = await pool.query(
+    "SELECT MAX(case_number) AS max FROM cases WHERE guild_id = ?",
+    [guildId]
+  );
+  return (rows[0]?.max ?? 0) + 1;
 }
 
 export async function createCase(
@@ -87,37 +77,44 @@ export async function createCase(
   severity = null,
   duration = null
 ) {
-  const data = await loadCases(guildId);
-  const caseNumber = data.nextCaseNumber++;
+  const caseNumber = await getNextCaseNumber(guildId);
 
-  data.cases.push({
-    caseNumber,
-    type,
-    userId,
-    username,
-    moderatorId,
-    moderatorName,
-    reason,
-    severity,
-    duration,
-    timestamp: Date.now(),
-    guildId,
-  });
+  await pool.query(
+    `INSERT INTO cases
+     (guild_id, case_number, type, user_id, username, moderator_id, moderator_name, reason, severity, duration, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      guildId,
+      caseNumber,
+      type,
+      userId,
+      username,
+      moderatorId,
+      moderatorName,
+      reason,
+      severity,
+      duration,
+      Date.now(),
+    ]
+  );
 
-  await saveCases(guildId, data);
   return caseNumber;
 }
 
+export async function loadCases(guildId) {
+  const [rows] = await pool.query(
+    "SELECT * FROM cases WHERE guild_id = ? ORDER BY case_number ASC",
+    [guildId]
+  );
+  return rows;
+}
+
 export async function deleteCase(guildId, caseNumber) {
-  const data = await loadCases(guildId);
-  const before = data.cases.length;
-
-  data.cases = data.cases.filter(c => c.caseNumber !== caseNumber);
-
-  if (before === data.cases.length) return false;
-
-  await saveCases(guildId, data);
-  return true;
+  const [res] = await pool.query(
+    "DELETE FROM cases WHERE guild_id = ? AND case_number = ?",
+    [guildId, caseNumber]
+  );
+  return res.affectedRows > 0;
 }
 
 /* ===================== WARNINGS ===================== */
@@ -144,63 +141,58 @@ export async function addWarning(
 }
 
 export async function loadWarnings(guildId) {
-  const data = await loadCases(guildId);
-  return data.cases.filter(c => c.type === "WARN");
+  const [rows] = await pool.query(
+    "SELECT * FROM cases WHERE guild_id = ? AND type = 'WARN'",
+    [guildId]
+  );
+  return rows;
 }
 
-export async function revertWarning(guildId, targetUserId) {
-  const data = await loadCases(guildId);
+export async function revertWarning(guildId, userId) {
+  const [rows] = await pool.query(
+    `SELECT id FROM cases
+     WHERE guild_id = ? AND user_id = ? AND type = 'WARN'
+     ORDER BY case_number DESC LIMIT 1`,
+    [guildId, userId]
+  );
 
-  const index = [...data.cases]
-    .reverse()
-    .findIndex(c => c.type === "WARN" && c.userId === targetUserId);
+  if (!rows.length) return false;
 
-  if (index === -1) return false;
-
-  const realIndex = data.cases.length - 1 - index;
-  data.cases.splice(realIndex, 1);
-
-  await saveCases(guildId, data);
+  await pool.query("DELETE FROM cases WHERE id = ?", [rows[0].id]);
   return true;
 }
 
 /* ===================== OVERRIDE CODES ===================== */
 
-export async function loadOverrideCodes() {
-  return loadJSON(OVERRIDE_FILE, { codes: [] });
-}
-
-export async function saveOverrideCodes(data) {
-  await saveJSON(OVERRIDE_FILE, data);
-}
-
 export async function generateBanOverrideCode(createdBy, creatorId) {
-  const data = await loadOverrideCodes();
   const code = Math.random().toString(36).slice(2, 10).toUpperCase();
 
-  data.codes.push({
-    code,
-    createdBy,
-    creatorId,
-    createdAt: Date.now(),
-    used: false,
-  });
+  await pool.query(
+    `INSERT INTO override_codes
+     (code, created_by, creator_id, created_at)
+     VALUES (?, ?, ?, ?)`,
+    [code, createdBy, creatorId, Date.now()]
+  );
 
-  await saveOverrideCodes(data);
   return code;
 }
 
 export async function validateAndUseOverrideCode(code, userId) {
-  const data = await loadOverrideCodes();
-  const entry = data.codes.find(c => c.code === code && !c.used);
-  if (!entry) return null;
+  const [rows] = await pool.query(
+    "SELECT * FROM override_codes WHERE code = ? AND used = FALSE",
+    [code]
+  );
 
-  entry.used = true;
-  entry.usedBy = userId;
-  entry.usedAt = Date.now();
+  if (!rows.length) return null;
 
-  await saveOverrideCodes(data);
-  return entry;
+  await pool.query(
+    `UPDATE override_codes
+     SET used = TRUE, used_by = ?, used_at = ?
+     WHERE code = ?`,
+    [userId, Date.now(), code]
+  );
+
+  return rows[0];
 }
 
 /* ===================== PERMISSIONS ===================== */
@@ -221,46 +213,36 @@ export function getHighestStaffRole(member) {
 }
 
 export function hasPermission(member, permission) {
-  try {
-    if (!member) return false;
-    if (isBotOwner(member)) return true;
+  if (!member) return false;
+  if (isBotOwner(member)) return true;
 
-    const role = getHighestStaffRole(member);
-    if (!role) return false;
-    if (role.permissions === "all") return true;
+  const role = getHighestStaffRole(member);
+  if (!role) return false;
+  if (role.permissions === "all") return true;
 
-    return role.permissions.includes(permission);
-  } catch {
-    return false;
-  }
+  return role.permissions.includes(permission);
 }
 
 /* ===================== WEB PERMISSIONS ===================== */
 
 export function hasWebPermission(guildId, userId, permission) {
-  try {
-    if (isBotOwner(userId)) return true;
+  if (isBotOwner(userId)) return true;
 
-    const config = getStaffConfig(guildId);
-    if (!config?.staffRoles) return false;
+  const config = getStaffConfig(guildId);
+  if (!config?.staffRoles) return false;
 
-    let bestRole = null;
+  let best = null;
 
-    for (const role of config.staffRoles) {
-      if (role.users?.includes(userId)) {
-        if (!bestRole || role.level < bestRole.level) {
-          bestRole = role;
-        }
-      }
+  for (const role of config.staffRoles) {
+    if (role.users?.includes(userId)) {
+      if (!best || role.level < best.level) best = role;
     }
-
-    if (!bestRole) return false;
-    if (bestRole.permissions === "all") return true;
-
-    return bestRole.permissions.includes(permission);
-  } catch {
-    return false;
   }
+
+  if (!best) return false;
+  if (best.permissions === "all") return true;
+
+  return best.permissions.includes(permission);
 }
 
 /* ===================== LOGGING ===================== */
@@ -268,18 +250,14 @@ export function hasWebPermission(guildId, userId, permission) {
 export async function sendLog(guild, embed, actor) {
   if (isBotOwner(actor)) return;
 
-  try {
-    const channelId = getStaffConfig(guild.id)?.channels?.modLogs;
-    if (!channelId) return;
+  const channelId = getStaffConfig(guild.id)?.channels?.modLogs;
+  if (!channelId) return;
 
-    const channel = await guild.channels.fetch(channelId).catch(() => null);
-    if (channel) await channel.send({ embeds: [embed] });
-  } catch {
-    // intentionally silent
-  }
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (channel) await channel.send({ embeds: [embed] });
 }
 
-/* ===================== DM HANDLER (EMBEDS) ===================== */
+/* ===================== DM HANDLER ===================== */
 
 export const DM_EXCEPTIONS = new Set([
   "case",
@@ -299,19 +277,15 @@ export async function dmAffectedUser({
   if (isBotOwner(actor)) return;
   if (DM_EXCEPTIONS.has(commandName)) return;
 
-  try {
-    const embed = new EmbedBuilder()
-      .setColor(0xe67e22)
-      .setTitle("📢 Moderation Action")
-      .setDescription(message)
-      .addFields(
-        { name: "Server", value: guildName, inline: true },
-        { name: "Action", value: commandName.toUpperCase(), inline: true }
-      )
-      .setTimestamp();
+  const embed = new EmbedBuilder()
+    .setColor(0xe67e22)
+    .setTitle("📢 Moderation Action")
+    .setDescription(message)
+    .addFields(
+      { name: "Server", value: guildName, inline: true },
+      { name: "Action", value: commandName.toUpperCase(), inline: true }
+    )
+    .setTimestamp();
 
-    await targetUser.send({ embeds: [embed] });
-  } catch {
-    // DM closed or blocked
-  }
+  await targetUser.send({ embeds: [embed] }).catch(() => {});
 }
