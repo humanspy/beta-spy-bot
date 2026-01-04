@@ -1,18 +1,23 @@
-import { hasPermission, dmAffectedUser } from "../core.js";
+import {
+  hasPermission,
+  createCaseAction,
+  dmAffectedUser,
+} from "../core.js";
 
-export default async function kick(interaction) {
+export async function kick(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
     if (!hasPermission(interaction.member, "kick")) {
-      return interaction.editReply("❌ You do not have permission to kick users.");
+      return interaction.editReply("❌ No permission.");
     }
 
     const member = interaction.options.getMember("user");
-    const reason = interaction.options.getString("reason") ?? "No reason provided";
+    const reason =
+      interaction.options.getString("reason") ?? "No reason provided";
 
     if (!member || !member.kickable) {
-      return interaction.editReply("❌ Unable to kick this user.");
+      return interaction.editReply("❌ Cannot kick this user.");
     }
 
     await dmAffectedUser({
@@ -25,8 +30,22 @@ export default async function kick(interaction) {
 
     await member.kick(reason);
 
-    return interaction.editReply(`👢 **${member.user.tag}** has been kicked.`);
+    const caseNumber = await createCaseAction({
+      guildId: interaction.guild.id,
+      userId: member.id,
+      username: member.user.tag,
+      type: "KICK",
+      moderatorId: interaction.user.id,
+      moderatorName: interaction.user.tag,
+      reason,
+    });
+
+    return interaction.editReply(
+      `👢 **${member.user.tag}** kicked (Case #${caseNumber}).`
+    );
   } catch {
-    return interaction.editReply("❌ Failed to execute kick command.");
+    return interaction.editReply("❌ Failed to kick user.");
   }
 }
+
+export default kick;

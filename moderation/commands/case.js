@@ -1,42 +1,80 @@
-import { hasPermission, loadCases, deleteCase } from "../core.js";
+import {
+  hasPermission,
+  loadCaseByNumber,
+  loadCasesForUser,
+  deleteCase,
+} from "../core.js";
+import { EmbedBuilder } from "discord.js";
 
-export default async function caseCmd(interaction, sub) {
+export async function caseCmd(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
     if (!hasPermission(interaction.member, "case")) {
-      return interaction.editReply("❌ You do not have permission to manage cases.");
+      return interaction.editReply("❌ No permission.");
     }
+
+    const guildId = interaction.guild.id;
 
     if (sub === "view") {
       const number = interaction.options.getInteger("number");
       const user = interaction.options.getUser("user");
 
-      const data = await loadCases(interaction.guild.id);
-      let cases = data.cases;
+      if (!number && !user) {
+        return interaction.editReply("❌ Provide a case number or user.");
+      }
 
-      if (number) cases = cases.filter(c => c.caseNumber === number);
-      if (user) cases = cases.filter(c => c.userId === user.id);
+      if (number) {
+        const c = await loadCaseByNumber(guildId, number);
+        if (!c) return interaction.editReply("❌ Case not found.");
 
+        const embed = new EmbedBuilder()
+          .setTitle(`📁 Case #${c.case_number}`)
+          .setColor(0x3498db)
+          .addFields(
+            { name: "User", value: `<@${c.user_id}>` },
+            { name: "Type", value: c.type },
+            { name: "Reason", value: c.reason }
+          )
+          .setTimestamp(new Date(c.created_at));
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      const cases = await loadCasesForUser(guildId, user.id);
       if (!cases.length) {
         return interaction.editReply("ℹ️ No cases found.");
       }
 
-      return interaction.editReply(
-        cases
-          .map(c => `#${c.caseNumber} | ${c.type} | ${c.username} | ${c.reason ?? "—"}`)
-          .join("\n")
-      );
+      const embed = new EmbedBuilder()
+        .setTitle(`📁 Cases for ${user.tag}`)
+        .setColor(0x3498db)
+        .setDescription(
+          cases
+            .map(
+              c =>
+                `**#${c.case_number}** | ${c.type}\n${c.reason}`
+            )
+            .join("\n\n")
+        );
+
+      return interaction.editReply({ embeds: [embed] });
     }
 
     if (sub === "remove") {
       const number = interaction.options.getInteger("number");
-      await deleteCase(interaction.guild.id, number);
+      if (!number) return interaction.editReply("❌ Case number required.");
+
+      const ok = await deleteCase(guildId, number);
+      if (!ok) return interaction.editReply("❌ Case not found.");
+
       return interaction.editReply(`🗑️ Case **#${number}** deleted.`);
     }
 
     return interaction.editReply("❌ Invalid subcommand.");
   } catch {
-    return interaction.editReply("❌ Failed to execute case command.");
+    return interaction.editReply("❌ Failed to manage cases.");
   }
 }
+
+export default caseCmd;

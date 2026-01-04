@@ -1,18 +1,26 @@
-import { hasPermission, dmAffectedUser } from "../core.js";
+import {
+  hasPermission,
+  createCaseAction,
+  createRevertAction,
+  dmAffectedUser,
+} from "../core.js";
 
-export default async function ban(interaction, sub) {
+export async function ban(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
     if (!hasPermission(interaction.member, "ban")) {
-      return interaction.editReply("❌ You do not have permission to ban users.");
+      return interaction.editReply("❌ No permission.");
     }
+
+    const reason =
+      interaction.options.getString("reason") ?? "No reason provided";
 
     if (sub === "add") {
       const targetId = interaction.options.getString("target");
-      const reason = interaction.options.getString("reason") ?? "No reason provided";
-
-      const member = await interaction.guild.members.fetch(targetId).catch(() => null);
+      const member = await interaction.guild.members
+        .fetch(targetId)
+        .catch(() => null);
 
       if (member) {
         await dmAffectedUser({
@@ -26,17 +34,42 @@ export default async function ban(interaction, sub) {
 
       await interaction.guild.members.ban(targetId, { reason });
 
-      return interaction.editReply(`🔨 User **${targetId}** has been banned.`);
+      const caseNumber = await createCaseAction({
+        guildId: interaction.guild.id,
+        userId: targetId,
+        username: member?.user.tag ?? targetId,
+        type: "BAN",
+        moderatorId: interaction.user.id,
+        moderatorName: interaction.user.tag,
+        reason,
+      });
+
+      return interaction.editReply(
+        `🔨 User **${targetId}** banned (Case #${caseNumber}).`
+      );
     }
 
     if (sub === "remove") {
       const userId = interaction.options.getString("user_id");
+
       await interaction.guild.members.unban(userId);
+
+      await createRevertAction({
+        guildId: interaction.guild.id,
+        userId,
+        type: "UNBAN",
+        moderatorId: interaction.user.id,
+        moderatorName: interaction.user.tag,
+        reason: "User unbanned",
+      });
+
       return interaction.editReply(`✅ User **${userId}** unbanned.`);
     }
 
     return interaction.editReply("❌ Invalid subcommand.");
   } catch {
-    return interaction.editReply("❌ Failed to execute ban command.");
+    return interaction.editReply("❌ Failed to execute ban.");
   }
 }
+
+export default ban;

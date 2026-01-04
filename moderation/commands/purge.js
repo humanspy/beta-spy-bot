@@ -1,41 +1,44 @@
-import { hasPermission, addWarning, dmAffectedUser } from "../core.js";
+import { hasPermission, createCaseAction } from "../core.js";
 
-export default async function warn(interaction, sub) {
+export async function purge(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!hasPermission(interaction.member, "warn")) {
-      return interaction.editReply("❌ You do not have permission to warn users.");
+    if (!hasPermission(interaction.member, "purge")) {
+      return interaction.editReply("❌ No permission.");
     }
 
-    if (sub === "add") {
-      const user = interaction.options.getUser("user");
-      const reason = interaction.options.getString("reason");
-      const severity = interaction.options.getString("severity") ?? "moderate";
+    const amount = interaction.options.getInteger("amount");
+    const targetUser = interaction.options.getUser("user");
 
-      await addWarning(
-        interaction.guild.id,
-        user.id,
-        user.tag,
-        interaction.user.id,
-        interaction.user.tag,
-        reason,
-        severity
-      );
+    let deleted;
 
-      await dmAffectedUser({
-        actor: interaction.user,
-        commandName: "warn",
-        targetUser: user,
-        guildName: interaction.guild.name,
-        message: `You have received a warning.\n\nSeverity: ${severity}\nReason: ${reason}`,
-      });
-
-      return interaction.editReply(`⚠️ **${user.tag}** has been warned.`);
+    if (targetUser) {
+      const messages = await interaction.channel.messages.fetch({ limit: 100 });
+      const filtered = messages
+        .filter(m => m.author.id === targetUser.id)
+        .first(amount);
+      deleted = await interaction.channel.bulkDelete(filtered, true);
+    } else {
+      deleted = await interaction.channel.bulkDelete(amount, true);
     }
 
-    return interaction.editReply("❌ Invalid subcommand.");
+    const caseNumber = await createCaseAction({
+      guildId: interaction.guild.id,
+      userId: targetUser?.id ?? "CHANNEL",
+      username: targetUser?.tag ?? "Multiple users",
+      type: "PURGE",
+      moderatorId: interaction.user.id,
+      moderatorName: interaction.user.tag,
+      reason: `Deleted ${deleted.size} messages`,
+    });
+
+    return interaction.editReply(
+      `🗑️ Deleted **${deleted.size}** messages (Case #${caseNumber}).`
+    );
   } catch {
-    return interaction.editReply("❌ Failed to execute warn command.");
+    return interaction.editReply("❌ Failed to purge messages.");
   }
 }
+
+export default purge;
