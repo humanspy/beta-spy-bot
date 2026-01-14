@@ -4,7 +4,6 @@ import fs from "fs/promises";
 import bcrypt from "bcrypt";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
-import "./web/server.js";
 
 import {
   Client,
