@@ -134,13 +134,10 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("remove")
+      sub.setName("delete")
         .setDescription("Delete a case")
         .addIntegerOption(o =>
           o.setName("number").setDescription("Case number").setRequired(true)
-        )
-        .addBooleanOption(o =>
-          o.setName("revert_warn").setDescription("Undo warning")
         )
     ),
 
@@ -148,7 +145,7 @@ export const guildCommands = [
     .setName("purge")
     .setDescription("Delete messages")
     .addIntegerOption(o =>
-      o.setName("amount").setDescription("Amount").setRequired(true)
+      o.setName("amount").setDescription("Amount").setRequired(true).setMaxValue(1000)
     )
     .addUserOption(o =>
       o.setName("user").setDescription("Only messages from this user")

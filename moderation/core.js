@@ -9,6 +9,37 @@ export const botOwners = {
   [process.env.DISCORD_BOT_OWNER_2]: true,
 };
 
+function getCaseTableName(guildId) {
+  const safeId = String(guildId);
+  if (!/^\d+$/.test(safeId)) {
+    throw new Error("Invalid guild id");
+  }
+  return `cases_${safeId}`;
+}
+
+export async function ensureCasesTable(guildId) {
+  const tableName = getCaseTableName(guildId);
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
+      case_number INT UNSIGNED NOT NULL,
+      user_id VARCHAR(32) NOT NULL,
+      username VARCHAR(100) NULL,
+      type VARCHAR(32) NOT NULL,
+      moderator_id VARCHAR(32) NOT NULL,
+      moderator_name VARCHAR(100) NOT NULL,
+      reason TEXT NOT NULL,
+      severity VARCHAR(32) NULL,
+      duration VARCHAR(32) NULL,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (case_number),
+      KEY idx_user_id (user_id),
+      KEY idx_type (type),
+      KEY idx_created_at (created_at)
+    )`
+  );
+  return tableName;
+}
+
 export function isBotOwner(memberOrUserId) {
   const id =
     typeof memberOrUserId === "string"
@@ -17,12 +48,19 @@ export function isBotOwner(memberOrUserId) {
   return Boolean(botOwners[id]);
 }
 
+export async function isBotOwnerBypass(member) {
+  if (!member) return false;
+  if (!isBotOwner(member)) return false;
+  const role = await getHighestStaffRole(member);
+  return !role;
+}
+
 /* ===================== PERMISSIONS ===================== */
 
-export function getHighestStaffRole(member) {
+export async function getHighestStaffRole(member) {
   if (!member) return null;
 
-  const config = getStaffConfig(member.guild.id);
+  const config = await getStaffConfig(member.guild.id);
   let best = null;
 
   for (const role of config?.staffRoles ?? []) {
@@ -34,11 +72,10 @@ export function getHighestStaffRole(member) {
   return best;
 }
 
-export function hasPermission(member, permission) {
+export async function hasPermission(member, permission) {
   if (!member) return false;
-  if (isBotOwner(member)) return true;
-
-  const role = getHighestStaffRole(member);
+  const role = await getHighestStaffRole(member);
+  if (isBotOwner(member) && !role) return true;
   if (!role) return false;
   if (role.permissions === "all") return true;
 
@@ -48,9 +85,9 @@ export function hasPermission(member, permission) {
 /* ===================== CASE NUMBER ===================== */
 
 export async function getNextCaseNumber(guildId) {
+  const tableName = await ensureCasesTable(guildId);
   const [[row]] = await pool.query(
-    "SELECT MAX(case_number) AS max FROM actions WHERE guild_id = ?",
-    [guildId]
+    `SELECT MAX(case_number) AS max FROM \`${tableName}\``
   );
 
   return (row?.max ?? 0) + 1;
@@ -71,6 +108,7 @@ export async function createCaseAction({
   severity,
   duration,
 }) {
+  const tableName = await ensureCasesTable(guildId);
   const safeReason = reason || "No reason provided";
 
   const finalSeverity =
@@ -86,13 +124,12 @@ export async function createCaseAction({
   const caseNumber = await getNextCaseNumber(guildId);
 
   await pool.query(
-    `INSERT INTO actions
-     (guild_id, case_number, user_id, username, type,
+    `INSERT INTO \`${tableName}\`
+     (case_number, user_id, username, type,
       moderator_id, moderator_name,
       reason, severity, duration, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      guildId,
       caseNumber,
       userId,
       username,
@@ -121,14 +158,15 @@ export async function createRevertAction({
   moderatorName,
   reason,
 }) {
+  const tableName = await ensureCasesTable(guildId);
   await pool.query(
-    `INSERT INTO actions
-     (guild_id, case_number, user_id, type,
+    `INSERT INTO \`${tableName}\`
+     (case_number, user_id, type,
       moderator_id, moderator_name,
       reason, created_at)
-     VALUES (?, NULL, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
-      guildId,
+      await getNextCaseNumber(guildId),
       userId,
       type,
       moderatorId,
@@ -142,25 +180,25 @@ export async function createRevertAction({
 /* ===================== CASE LOOKUP ===================== */
 
 export async function loadCaseByNumber(guildId, caseNumber) {
+  const tableName = await ensureCasesTable(guildId);
   const [[row]] = await pool.query(
     `SELECT *
-     FROM actions
-     WHERE guild_id = ? AND case_number = ?`,
-    [guildId, caseNumber]
+     FROM \`${tableName}\`
+     WHERE case_number = ?`,
+    [caseNumber]
   );
 
   return row ?? null;
 }
 
 export async function loadCasesForUser(guildId, userId) {
+  const tableName = await ensureCasesTable(guildId);
   const [rows] = await pool.query(
     `SELECT *
-     FROM actions
-     WHERE guild_id = ?
-       AND user_id = ?
-       AND case_number IS NOT NULL
-     ORDER BY case_number ASC`,
-    [guildId, userId]
+     FROM \`${tableName}\`
+     WHERE user_id = ?
+     ORDER BY type ASC, case_number ASC`,
+    [userId]
   );
 
   return rows;
@@ -169,13 +207,59 @@ export async function loadCasesForUser(guildId, userId) {
 /* ===================== CASE DELETE ===================== */
 
 export async function deleteCase(guildId, caseNumber) {
+  const tableName = await ensureCasesTable(guildId);
   const [res] = await pool.query(
-    `DELETE FROM actions
-     WHERE guild_id = ? AND case_number = ?`,
-    [guildId, caseNumber]
+    `DELETE FROM \`${tableName}\`
+     WHERE case_number = ?`,
+    [caseNumber]
   );
 
   return res.affectedRows > 0;
+}
+
+/* ===================== MOD LOGS ===================== */
+
+export async function logModerationAction({
+  guild,
+  actor,
+  actorMember,
+  action,
+  target,
+  reason,
+  caseNumber,
+  fields = [],
+  color = 0x2f3136,
+}) {
+  if (!guild || !actor) return;
+  if (isBotOwner(actor)) {
+    const staffRole = actorMember
+      ? await getHighestStaffRole(actorMember)
+      : null;
+    if (!staffRole) return;
+  }
+
+  const config = await getStaffConfig(guild.id);
+  const channelId = config?.channels?.modLogs;
+  if (!channelId) return;
+
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(action)
+    .setTimestamp()
+    .setFields(
+      [
+        { name: "Moderator", value: `<@${actor.id}>`, inline: true },
+        target ? { name: "Target", value: target, inline: true } : null,
+        caseNumber ? { name: "Case", value: `#${caseNumber}`, inline: true } : null,
+        reason ? { name: "Reason", value: reason } : null,
+        ...fields,
+      ].filter(Boolean)
+    );
+
+  await channel.send({ embeds: [embed] });
 }
 
 /* ===================== DM HANDLER ===================== */
@@ -189,13 +273,19 @@ export const DM_EXCEPTIONS = new Set([
 
 export async function dmAffectedUser({
   actor,
+  actorMember,
   commandName,
   targetUser,
   guildName,
   message,
 }) {
   if (!targetUser) return;
-  if (isBotOwner(actor)) return;
+  if (isBotOwner(actor)) {
+    const staffRole = actorMember
+      ? await getHighestStaffRole(actorMember)
+      : null;
+    if (!staffRole) return;
+  }
   if (DM_EXCEPTIONS.has(commandName)) return;
 
   try {

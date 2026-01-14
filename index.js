@@ -14,7 +14,7 @@ import {
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
 import { ensureDataPath } from "./utils/storage.js";
-import { getStaffConfig } from "./moderation/staffConfig.js";
+import { getStaffConfig, initStaffConfigCache } from "./moderation/staffConfig.js";
 
 import { handleCounting } from "./counting/index.js";
 import { handleLeveling } from "./profile/level/index.js";
@@ -27,6 +27,7 @@ import { routeInteraction } from "./router.js";
 import { testDatabaseConnection } from "./database/mysql.js";
 
 await testDatabaseConnection();
+await initStaffConfigCache();
 
 
 /* ===================== PRE-FLIGHT ===================== */
