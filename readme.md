@@ -1,6 +1,6 @@
 # Spy Group Discord Bot -- BETA
 
-A **modular, production-grade Discord bot** built for community servers, featuring advanced (manual) moderation, music playback, leveling with role rewards, ModMail with forum tickets, and a secure web dashboard.
+A **modular, production-grade Discord bot** built for community servers, featuring advanced (manual) moderation, music playback, leveling with role rewards, and ModMail with forum tickets.
 
 This bot is designed with **clean architecture**, **central routing**, and **server-scoped data isolation**.
 
@@ -14,7 +14,7 @@ This bot is designed with **clean architecture**, **central routing**, and **ser
 * Full case system with logging
 * Override ban codes
 * Permission-based staff hierarchy
-* Website integration for moderation actions
+* Integrated moderation workflows
 
 ### 🎵 Music
 
@@ -55,17 +55,7 @@ This bot is designed with **clean architecture**, **central routing**, and **ser
 * Open / Closed tags
 * Closed tickets are automatically locked
 * Anonymous staff replies (optional)
-* Appeal usage linked to the website
-
-### 🌐 Web Dashboard
-
-* Discord OAuth login
-* Server selection
-* Case viewer with filters
-* Role-aware UI
-* Hackban / unban / case delete / warn revert
-* Appeal counter display
-* Audit logging & confirmations
+* Appeal usage tracking per user
 
 ---
 
@@ -104,11 +94,6 @@ This bot is designed with **clean architecture**, **central routing**, and **ser
 │  ├─ ticketManager.js
 │  └─ storage/
 │
-├─ web/
-│  ├─ server.js
-│  ├─ routes/
-│  └─ public/
-│
 └─ utils/
 ```
 
@@ -120,7 +105,6 @@ This bot is designed with **clean architecture**, **central routing**, and **ser
 
 * Node.js **18+**
 * Discord Bot Token
-* Discord Application with OAuth2 enabled
 
 ### Install dependencies
 
@@ -135,8 +119,6 @@ Create a `.env` file:
 ```env
 DISCORD_BOT_TOKEN=your_bot_token
 DISCORD_CLIENT_ID=your_client_id
-DISCORD_CLIENT_SECRET=your_client_secret
-BASE_URL=https://cases.spy.gaming.com
 ```
 
 ---
@@ -218,10 +200,7 @@ node index.js
 
 ## 🔐 Security Model
 
-* Discord OAuth for web authentication
-* HTTP-only session cookies
 * Confirmation system for destructive actions
-* Role-aware UI hiding (frontend)
 * Permission enforcement (backend)
 
 ---
@@ -233,7 +212,6 @@ Designed to easily support:
 * additional ticket types
 * more music providers
 * new moderation actions
-* website-based configuration
 * analytics & logging
 * transcript exports
 * API extensions
