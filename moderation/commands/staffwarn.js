@@ -49,6 +49,15 @@ export default async function staffwarn(interaction, sub) {
         reason,
       });
 
+      if (activeWarns.length + 1 >= maxWarns) {
+        const rolesToRemove = (config.staffRoles ?? [])
+          .map(role => role.roleId)
+          .filter(roleId => staffMember.roles.cache.has(roleId));
+        if (rolesToRemove.length) {
+          await staffMember.roles.remove(rolesToRemove).catch(() => {});
+        }
+      }
+
       const embed = new EmbedBuilder()
         .setColor(0xf1c40f)
         .setTitle("⚠️ Staff Warning Issued")

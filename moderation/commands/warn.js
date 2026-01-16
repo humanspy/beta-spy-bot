@@ -67,6 +67,7 @@ export async function warn(interaction, sub) {
     }
 
     if (sub === "remove") {
+      return interaction.editReply("❌ Use **/case remove** to delete a warning case.");
       if (!isBypassOwner) {
         await createRevertAction({
           guildId: interaction.guild.id,

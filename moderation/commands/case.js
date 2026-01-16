@@ -64,12 +64,6 @@ export async function caseCmd(interaction, sub) {
     }
 
     if (sub === "remove") {
-      return interaction.editReply(
-        "❌ Use **/case delete**. Case deletion does not revert warnings."
-      );
-    }
-
-    if (sub === "delete") {
       const number = interaction.options.getInteger("number");
       if (!number) return interaction.editReply("❌ Case number required.");
 
@@ -80,13 +74,13 @@ export async function caseCmd(interaction, sub) {
         guild: interaction.guild,
         actor: interaction.user,
         actorMember: interaction.member,
-        action: "🗑️ Case Deleted",
+        action: "🗑️ Case Removed",
         target: `Case #${number}`,
-        reason: "Case deleted via command",
+        reason: "Case removed via command",
         color: 0x95a5a6,
       });
 
-      return interaction.editReply(`🗑️ Case **#${number}** deleted.`);
+      return interaction.editReply(`🗑️ Case **#${number}** removed.`);
     }
 
     return interaction.editReply("❌ Invalid subcommand.");

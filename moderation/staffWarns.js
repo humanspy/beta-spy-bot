@@ -7,6 +7,7 @@ async function ensureStaffWarnTable(guild) {
   const tableName = getGuildTableName(guild, "staffwarns");
   await pool.query(
     `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
+      warn_id INT UNSIGNED NOT NULL PRIMARY KEY,
       warn_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       staff_id VARCHAR(32) NOT NULL,
       staff_tag VARCHAR(100) NULL,
@@ -19,6 +20,14 @@ async function ensureStaffWarnTable(guild) {
       KEY idx_expires_at (expires_at)
     )`
   );
+  const [columns] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+  const warnIdColumn = columns.find(col => col.Field === "warn_id");
+  if (warnIdColumn?.Extra?.includes("auto_increment")) {
+    await pool.query(
+      `ALTER TABLE \`${tableName}\`
+       MODIFY warn_id INT UNSIGNED NOT NULL PRIMARY KEY`
+    );
+  }
   return tableName;
 }
 
@@ -47,6 +56,18 @@ export async function getActiveStaffWarns(guild, staffId) {
 
 export async function addStaffWarn(guild, warnData) {
   const tableName = await ensureStaffWarnTable(guild);
+  const [[row]] = await pool.query(
+    `SELECT MAX(warn_id) AS max_warn_id FROM \`${tableName}\``
+  );
+  const nextWarnId = (row?.max_warn_id ?? 0) + 1;
+  const createdAt = Date.now();
+  const expiresAt = createdAt + ONE_YEAR_MS;
+  await pool.query(
+    `INSERT INTO \`${tableName}\`
+     (warn_id, staff_id, staff_tag, moderator_id, moderator_tag, reason, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      nextWarnId,
   const createdAt = Date.now();
   const expiresAt = createdAt + ONE_YEAR_MS;
   const [result] = await pool.query(
@@ -64,6 +85,7 @@ export async function addStaffWarn(guild, warnData) {
     ]
   );
   return {
+    warnId: nextWarnId,
     warnId: result.insertId,
     createdAt,
     expiresAt,
@@ -77,5 +99,15 @@ export async function removeStaffWarn(guild, warnId) {
      WHERE warn_id = ?`,
     [warnId]
   );
+  if (!result.affectedRows) return false;
+
+  await pool.query(
+    `UPDATE \`${tableName}\`
+     SET warn_id = warn_id - 1
+     WHERE warn_id > ?`,
+    [warnId]
+  );
+
+  return true;
   return result.affectedRows > 0;
 }

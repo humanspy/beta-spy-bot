@@ -134,8 +134,8 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("delete")
-        .setDescription("Delete a case")
+      sub.setName("remove")
+        .setDescription("Remove a case")
         .addIntegerOption(o =>
           o.setName("number").setDescription("Case number").setRequired(true)
         )

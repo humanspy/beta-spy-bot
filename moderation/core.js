@@ -242,6 +242,22 @@ export async function deleteCase(guildId, guildName, caseNumber) {
     [caseNumber]
   );
 
+  if (!res.affectedRows) return false;
+
+  await pool.query(
+    `UPDATE \`${tableName}\`
+     SET case_number = case_number - 1
+     WHERE case_number > ?`,
+    [caseNumber]
+  );
+
+  return true;
+}
+    `DELETE FROM \`${tableName}\`
+     WHERE case_number = ?`,
+    [caseNumber]
+  );
+
   return res.affectedRows > 0;
 }
 
