@@ -1,11 +1,13 @@
 import {
+  getHighestStaffRole,
   hasPermission,
   createCaseAction,
   createRevertAction,
-  dmAffectedUser,
+  isBotOwner,
   isBotOwnerBypass,
   logModerationAction,
 } from "../core.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
 
 export async function ban(interaction, sub) {
@@ -36,23 +38,56 @@ export async function ban(interaction, sub) {
     const isBypassOwner = await isBotOwnerBypass(interaction.member);
 
     if (sub === "add") {
-      const targetId = interaction.options.getString("target");
+      const rawTarget = interaction.options.getString("target");
+      const targetId = rawTarget?.match(/\d{17,20}/)?.[0];
+      if (!targetId) {
+        return interaction.editReply("❌ Invalid user ID or mention.");
+      }
+      const hackban = interaction.options.getBoolean("hackban") ?? false;
+      const deleteDays = interaction.options.getInteger("delete_days");
       const member = await interaction.guild.members
         .fetch(targetId)
         .catch(() => null);
 
-      if (member) {
-        await dmAffectedUser({
-          actor: interaction.user,
-          actorMember: interaction.member,
-          commandName: "ban",
-          targetUser: member.user,
-          guildName: interaction.guild.name,
-          message: `You have been banned.\n\nReason: ${reason}`,
-        });
+      if (!member && !hackban) {
+        return interaction.editReply("❌ User not found in this server.");
       }
 
-      await interaction.guild.members.ban(targetId, { reason });
+      if (member) {
+        const staffRole = await getHighestStaffRole(member);
+        if (staffRole && !isBotOwner(interaction.user)) {
+          return interaction.editReply(
+            "❌ Staff are immune to moderation unless a bot owner issues the command."
+          );
+        }
+      }
+
+      if (member) {
+        const dmEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("🔨 You have been banned")
+          .setDescription(`Reason: ${reason}`)
+          .addFields({ name: "Server", value: interaction.guild.name })
+          .setTimestamp();
+        const appealButton = new ButtonBuilder()
+          .setCustomId("modmail_ban_appeal")
+          .setLabel("Ban Appeal")
+          .setStyle(ButtonStyle.Primary);
+        const row = new ActionRowBuilder().addComponents(appealButton);
+        await member.user
+          .send({ embeds: [dmEmbed], components: [row] })
+          .catch(() => {});
+      }
+
+      const banOptions = { reason };
+      if (typeof deleteDays === "number") {
+        banOptions.deleteMessageSeconds = Math.min(
+          Math.max(deleteDays, 0),
+          7
+        ) * 24 * 60 * 60;
+      }
+
+      await interaction.guild.members.ban(targetId, banOptions);
 
       const caseNumber = isBypassOwner
         ? null

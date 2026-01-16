@@ -35,13 +35,6 @@ export const guildCommands = [
         .addBooleanOption(o =>
           o.setName("silent").setDescription("Do not DM the user")
         )
-    )
-    .addSubcommand(sub =>
-      sub.setName("remove")
-        .setDescription("Clear warnings for a user")
-        .addUserOption(o =>
-          o.setName("user").setDescription("User").setRequired(true)
-        )
     ),
 
   new SlashCommandBuilder()
@@ -136,6 +129,13 @@ export const guildCommands = [
     .addSubcommand(sub =>
       sub.setName("remove")
         .setDescription("Remove a case")
+        .addIntegerOption(o =>
+          o.setName("number").setDescription("Case number").setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub.setName("delete")
+        .setDescription("Delete a case")
         .addIntegerOption(o =>
           o.setName("number").setDescription("Case number").setRequired(true)
         )

@@ -5,10 +5,10 @@ export default async function help(interaction) {
     .setColor(0x3498db)
     .setTitle("📋 Moderation Commands")
     .setDescription(
-      "**/warn add | remove**\n" +
+      "**/warn add**\n" +
       "**/timeout add | remove**\n" +
       "**/ban add | remove**\n" +
-      "**/case view | remove**\n" +
+      "**/case view | remove | delete**\n" +
       "**/purge**\n" +
       "**/kick**\n" +
       "**/staffwarn add | remove | list | config**\n" +

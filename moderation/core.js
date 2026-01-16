@@ -93,10 +93,13 @@ export async function hasPermission(member, permission) {
 export async function getNextCaseNumber(guildId, guildName) {
   const tableName = await ensureCasesTable(guildId, guildName);
   const [[row]] = await pool.query(
-    `SELECT MAX(case_number) AS max FROM \`${tableName}\``
+    `SELECT case_number
+     FROM \`${tableName}\`
+     ORDER BY case_number DESC
+     LIMIT 1`
   );
 
-  return (row?.max ?? 0) + 1;
+  return (row?.case_number ?? 0) + 1;
 }
 
 /* ===================== CREATE CASE ACTION ===================== */
@@ -252,13 +255,6 @@ export async function deleteCase(guildId, guildName, caseNumber) {
   );
 
   return true;
-}
-    `DELETE FROM \`${tableName}\`
-     WHERE case_number = ?`,
-    [caseNumber]
-  );
-
-  return res.affectedRows > 0;
 }
 
 /* ===================== MOD LOGS ===================== */

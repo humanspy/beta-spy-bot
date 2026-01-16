@@ -11,7 +11,7 @@ export default async function staffwarn(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!(await hasPermission(interaction.member, "staffwarn"))) {
+    if (!(await hasPermission(interaction.member, "warnstaff"))) {
       return interaction.editReply("❌ No permission.");
     }
 
@@ -68,6 +68,26 @@ export default async function staffwarn(interaction, sub) {
           { name: "Warn ID", value: `#${result.warnId}` }
         )
         .setTimestamp();
+
+      try {
+        await staffMember.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xf1c40f)
+              .setTitle("⚠️ Staff Warning")
+              .setDescription(
+                `You have received a staff warning in **${interaction.guild.name}**.`
+              )
+              .addFields(
+                { name: "Reason", value: reason },
+                { name: "Warn ID", value: `#${result.warnId}` }
+              )
+              .setTimestamp(),
+          ],
+        });
+      } catch {
+        // user DMs closed
+      }
 
       const channelId = config.channels?.staffWarnings;
       if (channelId) {
