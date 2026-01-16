@@ -28,6 +28,7 @@ export async function warn(interaction, sub) {
         ? null
         : await createCaseAction({
             guildId: interaction.guild.id,
+            guildName: interaction.guild.name,
             userId: user.id,
             username: user.tag,
             type: "WARN",
@@ -65,10 +66,11 @@ export async function warn(interaction, sub) {
       );
     }
 
-    if (sub === "revert") {
+    if (sub === "remove") {
       if (!isBypassOwner) {
         await createRevertAction({
           guildId: interaction.guild.id,
+          guildName: interaction.guild.name,
           userId: user.id,
           type: "REVERT_WARN",
           moderatorId: interaction.user.id,

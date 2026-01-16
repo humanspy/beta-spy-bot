@@ -38,6 +38,7 @@ export async function kick(interaction) {
       ? null
       : await createCaseAction({
           guildId: interaction.guild.id,
+          guildName: interaction.guild.name,
           userId: member.id,
           username: member.user.tag,
           type: "KICK",

@@ -5,7 +5,7 @@ import {
   isBotOwner,
   logModerationAction,
 } from "../core.js";
-import { getStaffConfig } from "../staffConfig.js";
+import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
 
 export default async function generatebancode(interaction) {
   try {
@@ -22,7 +22,10 @@ export default async function generatebancode(interaction) {
       interaction.user.id
     );
 
-    const config = await getStaffConfig(interaction.guild.id);
+    const config = await getStaffConfig(interaction.guild);
+    if (!config) {
+      return interaction.editReply("❌ Run /setup start first.");
+    }
     const rolesWithoutBan = (config?.staffRoles ?? [])
       .filter(role => {
         if (role.permissions === "all") return false;
@@ -58,6 +61,9 @@ export default async function generatebancode(interaction) {
       .setFooter({ text: "Keep this code private." })
       .setTimestamp();
 
+    config.overrideCode = code;
+    await saveStaffConfig(interaction.guild, config);
+
     await logModerationAction({
       guild: interaction.guild,
       actor: interaction.user,
@@ -67,7 +73,22 @@ export default async function generatebancode(interaction) {
       color: 0x9b59b6,
     });
 
-    return interaction.editReply({ embeds: [embed] });
+    const channelId = config.channels?.overrideCodes;
+    if (channelId) {
+      const channel = await interaction.guild.channels
+        .fetch(channelId)
+        .catch(() => null);
+      if (channel?.isTextBased()) {
+        await channel.send({ embeds: [embed] });
+      }
+    }
+
+    return interaction.editReply({
+      embeds: [embed],
+      content: channelId
+        ? "✅ Override code sent to the override codes channel."
+        : "⚠️ Override codes channel is not configured.",
+    });
   } catch {
     return interaction.editReply("❌ Failed to generate override code.");
   }

@@ -36,6 +36,7 @@ export async function timeout(interaction, sub) {
         ? null
         : await createCaseAction({
             guildId: interaction.guild.id,
+            guildName: interaction.guild.name,
             userId: member.id,
             username: member.user.tag,
             type: "TIMEOUT",
@@ -79,6 +80,7 @@ export async function timeout(interaction, sub) {
       if (!isBypassOwner) {
         await createRevertAction({
           guildId: interaction.guild.id,
+          guildName: interaction.guild.name,
           userId: member.id,
           type: "UNMUTE",
           moderatorId: interaction.user.id,

@@ -1,87 +1,88 @@
-import fs from "fs";
-import path from "path";
+import { pool } from "../../database/mysql.js";
+import { getGuildTableName } from "../../database/tableNames.js";
 
-/* ===================== PATHS ===================== */
-
-export const DATA_DIR = "./data/levels";
-export const XP_FILE = guildId => path.join(DATA_DIR, `${guildId}.json`);
-
-/* ===================== FILE HELPERS ===================== */
-
-export function ensureDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+async function ensureXpTable(guild) {
+  const tableName = getGuildTableName(guild, "xp");
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
+      user_id VARCHAR(32) NOT NULL PRIMARY KEY,
+      xp INT NOT NULL DEFAULT 0,
+      level INT NOT NULL DEFAULT 0,
+      messages INT NOT NULL DEFAULT 0,
+      last_message BIGINT NOT NULL DEFAULT 0,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP
+    )`
+  );
+  return tableName;
 }
 
-export function readJSON(file) {
-  if (!fs.existsSync(file)) return {};
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
+export async function getUserData(guild, userId) {
+  const tableName = await ensureXpTable(guild);
+  const [rows] = await pool.query(
+    `SELECT xp, level, messages, last_message
+     FROM \`${tableName}\`
+     WHERE user_id = ?`,
+    [userId]
+  );
 
-export function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-/* ===================== GUILD STORAGE ===================== */
-
-/**
- * Load ALL XP data for a guild
- */
-export function loadUserXP(guildId) {
-  ensureDir();
-  return readJSON(XP_FILE(guildId));
-}
-
-/**
- * Save ALL XP data for a guild
- */
-export function saveUserXP(guildId, data) {
-  ensureDir();
-  writeJSON(XP_FILE(guildId), data);
-}
-
-/* ===================== USER API ===================== */
-
-/**
- * Get or create XP data for a single user
- */
-export function getUserData(guildId, userId) {
-  const data = loadUserXP(guildId);
-
-  if (!data[userId]) {
-    data[userId] = {
+  if (!rows.length) {
+    const defaults = {
       xp: 0,
       level: 0,
       messages: 0,
       lastMessage: 0,
     };
-
-    saveUserXP(guildId, data);
+    await pool.query(
+      `INSERT INTO \`${tableName}\`
+       (user_id, xp, level, messages, last_message)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, defaults.xp, defaults.level, defaults.messages, defaults.lastMessage]
+    );
+    return defaults;
   }
 
-  return data[userId];
+  const row = rows[0];
+  return {
+    xp: row.xp ?? 0,
+    level: row.level ?? 0,
+    messages: row.messages ?? 0,
+    lastMessage: row.last_message ?? 0,
+  };
 }
 
-/**
- * Set XP data for a single user
- */
-export function setUserData(guildId, userId, userData) {
-  const data = loadUserXP(guildId);
-  data[userId] = userData;
-  saveUserXP(guildId, data);
+export async function setUserData(guild, userId, userData) {
+  const tableName = await ensureXpTable(guild);
+  await pool.query(
+    `INSERT INTO \`${tableName}\`
+     (user_id, xp, level, messages, last_message)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       xp = VALUES(xp),
+       level = VALUES(level),
+       messages = VALUES(messages),
+       last_message = VALUES(last_message)`,
+    [
+      userId,
+      userData.xp ?? 0,
+      userData.level ?? 0,
+      userData.messages ?? 0,
+      userData.lastMessage ?? 0,
+    ]
+  );
 }
 
-/* ===================== GUILD API ===================== */
-
-/**
- * Get all users in a guild with XP data
- */
-export function getGuildUsers(guildId) {
-  const data = loadUserXP(guildId);
-
-  return Object.entries(data).map(([userId, userData]) => ({
-    userId,
-    ...userData,
+export async function getGuildUsers(guild) {
+  const tableName = await ensureXpTable(guild);
+  const [rows] = await pool.query(
+    `SELECT user_id, xp, level, messages, last_message
+     FROM \`${tableName}\``
+  );
+  return rows.map(row => ({
+    userId: row.user_id,
+    xp: row.xp ?? 0,
+    level: row.level ?? 0,
+    messages: row.messages ?? 0,
+    lastMessage: row.last_message ?? 0,
   }));
 }

@@ -5,7 +5,7 @@ export async function handleLeveling(message) {
   if (!message.guild) return;
   if (message.author.bot) return;
 
-  const result = addXP(message.guild.id, message.author.id);
+  const result = await addXP(message.guild, message.author.id);
 
   if (!result.leveledUp) return;
 
