@@ -204,6 +204,26 @@ export async function loadCasesForUser(guildId, userId) {
   return rows;
 }
 
+export async function loadCases(guildId) {
+  const tableName = await ensureCasesTable(guildId);
+  const [rows] = await pool.query(
+    `SELECT *
+     FROM \`${tableName}\`
+     ORDER BY case_number ASC`
+  );
+
+  return {
+    cases: rows.map(row => ({
+      caseNumber: row.case_number,
+      userId: row.user_id,
+      username: row.username,
+      type: row.type,
+      reason: row.reason,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
 /* ===================== CASE DELETE ===================== */
 
 export async function deleteCase(guildId, caseNumber) {
