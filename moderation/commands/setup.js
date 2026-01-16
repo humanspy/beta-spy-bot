@@ -26,13 +26,13 @@ import { guildCommands } from "../../guild-commands.js";
 const PERMISSIONS = [
   "setup",
   "warn",
+  "warnstaff",
   "timeout",
   "case",
   "purge",
   "kick",
   "ban",
   "hackban",
-  "staffwarn",
   "all",
 ];
 

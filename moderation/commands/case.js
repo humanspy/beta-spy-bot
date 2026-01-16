@@ -63,19 +63,50 @@ export async function caseCmd(interaction, sub) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    if (sub === "remove") {
+    if (sub === "remove" || sub === "delete") {
       const number = interaction.options.getInteger("number");
       if (!number) return interaction.editReply("❌ Case number required.");
 
+      const existingCase = await loadCaseByNumber(
+        guildId,
+        guildName,
+        number
+      );
+      if (!existingCase) return interaction.editReply("❌ Case not found.");
+
       const ok = await deleteCase(guildId, guildName, number);
       if (!ok) return interaction.editReply("❌ Case not found.");
+
+      const affectedUser = await interaction.client.users
+        .fetch(existingCase.user_id)
+        .catch(() => null);
+      if (affectedUser) {
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setColor(0x95a5a6)
+            .setTitle("🗑️ Moderation Case Removed")
+            .setDescription(
+              `A moderation case (#${number}) was removed from **${interaction.guild.name}**.`
+            )
+            .addFields(
+              { name: "Case Type", value: existingCase.type },
+              { name: "Reason", value: existingCase.reason }
+            )
+            .setTimestamp();
+          await affectedUser.send({ embeds: [dmEmbed] });
+        } catch {
+          // user DMs closed
+        }
+      }
 
       await logModerationAction({
         guild: interaction.guild,
         actor: interaction.user,
         actorMember: interaction.member,
         action: "🗑️ Case Removed",
-        target: `Case #${number}`,
+        target: `<@${existingCase.user_id}> (${
+          existingCase.username ?? existingCase.user_id
+        })`,
         reason: "Case removed via command",
         color: 0x95a5a6,
       });

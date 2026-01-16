@@ -1,11 +1,19 @@
 import { ChannelType } from "discord.js";
 import { saveModmailConfig } from "./config.js";
+import { handleModmailInteraction } from "./dmHandler.js";
 
 /**
  * Handles ModMail component interactions (select menus, buttons)
  * This file is called from the global interactionCreate listener.
  */
 export async function handleModmailCore(interaction) {
+  if (interaction.isStringSelectMenu() || interaction.isButton()) {
+    const handled = await handleModmailInteraction(
+      interaction,
+      interaction.client
+    );
+    if (handled) return true;
+  }
   if (!interaction.isChannelSelectMenu()) return false;
   if (interaction.customId !== "modmail_forum_select") return false;
 
@@ -50,9 +58,9 @@ export async function handleModmailCore(interaction) {
     anonymousStaff: false,
     appealLimit: 2,
     ticketTypes: {
-      Question: { guide: "Ask your question clearly." },
-      Bug: { guide: "Describe the bug and steps to reproduce." },
-      "Ban Appeal": { guide: "Explain why your ban should be reviewed." },
+      Question: { guide: "Ask your question clearly.", tags: [] },
+      Bug: { guide: "Describe the bug and steps to reproduce.", tags: [] },
+      "Ban Appeal": { guide: "Explain why your ban should be reviewed.", tags: [] },
     },
   });
 
