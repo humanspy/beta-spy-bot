@@ -11,32 +11,41 @@ import mysql from "mysql2/promise";
  * - MYSQLUSER
  * - MYSQLPASSWORD
  * - MYSQLDATABASE
+ *
+ * Alternatively:
+ * - MYSQL_URL (or mysql_url)
  */
 
+const mysqlUrl = process.env.MYSQL_URL ?? process.env.mysql_url;
+
 if (
-  !process.env.MYSQLHOST ||
-  !process.env.MYSQLUSER ||
-  !process.env.MYSQLDATABASE
+  !mysqlUrl &&
+  (!process.env.MYSQLHOST ||
+    !process.env.MYSQLUSER ||
+    !process.env.MYSQLDATABASE)
 ) {
   console.warn(
     "⚠️ MySQL environment variables are missing. Database features may fail."
   );
 }
 
-export const pool = mysql.createPool({
-  host: process.env.MYSQLHOST,
-  port: Number(process.env.MYSQLPORT ?? 3306),
-  user: process.env.MYSQLUSER,
-  password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
+const poolConfig = mysqlUrl
+  ? { uri: mysqlUrl }
+  : {
+      host: process.env.MYSQLHOST,
+      port: Number(process.env.MYSQLPORT ?? 3306),
+      user: process.env.MYSQLUSER,
+      password: process.env.MYSQLPASSWORD,
+      database: process.env.MYSQLDATABASE,
+    };
 
+export const pool = mysql.createPool({
+  ...poolConfig,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-
   // Prevent timezone issues
   timezone: "Z",
-
   // Safer defaults
   decimalNumbers: true,
 });

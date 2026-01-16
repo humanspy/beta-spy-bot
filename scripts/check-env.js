@@ -1,12 +1,9 @@
 import "dotenv/config";
 
-const requiredVars = [
-  "DISCORD_BOT_TOKEN",
-  "DISCORD_CLIENT_ID",
-  "MYSQLHOST",
-  "MYSQLUSER",
-  "MYSQLDATABASE",
-];
+const requiredVars = ["DISCORD_BOT_TOKEN", "DISCORD_CLIENT_ID"];
+
+const mysqlRequiredVars = ["MYSQLHOST", "MYSQLUSER", "MYSQLDATABASE"];
+const mysqlUrl = process.env.MYSQL_URL ?? process.env.mysql_url;
 
 const optionalVars = [
   "MYSQLPORT",
@@ -14,9 +11,14 @@ const optionalVars = [
   "DISCORD_BOT_OWNER_1",
   "DISCORD_BOT_OWNER_2",
   "RAILWAY_ENVIRONMENT",
+  "RAILWAY_ENVIRONMENT_ID",
 ];
 
 const missingRequired = requiredVars.filter(name => !process.env[name]);
+const missingMysqlVars = mysqlRequiredVars.filter(name => !process.env[name]);
+if (!mysqlUrl) {
+  missingRequired.push(...missingMysqlVars);
+}
 const missingOptional = optionalVars.filter(name => !process.env[name]);
 
 if (missingRequired.length === 0) {
