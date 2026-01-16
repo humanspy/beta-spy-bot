@@ -7,7 +7,7 @@ export async function handleModmailCommands(interaction) {
   const sub = interaction.options.getSubcommand();
 
   if (sub === "setup") {
-    await setup(interaction);
+    await setup.execute(interaction);
     return true;
   }
 

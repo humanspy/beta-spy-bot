@@ -1,12 +1,14 @@
 import { getLevelRoleConfig } from "./levelroles.js";
 import { getUserData, setUserData } from "./storage.js";
 
-export function addXP(guildId, userId) {
-  const data = getUserData(guildId, userId);
+export async function addXP(guild, userId) {
+  const data = await getUserData(guild, userId);
 
   data.xp += 10;
+  data.messages += 1;
+  data.lastMessage = Date.now();
 
-  const needed = data.level * 100;
+  const needed = Math.max(100, data.level * 100);
   let leveledUp = false;
 
   if (data.xp >= needed) {
@@ -15,7 +17,7 @@ export function addXP(guildId, userId) {
     leveledUp = true;
   }
 
-  setUserData(guildId, userId, data);
+  await setUserData(guild, userId, data);
 
   return {
     leveledUp,
@@ -24,7 +26,7 @@ export function addXP(guildId, userId) {
 }
 
 export async function applyLevelRoles(member, level) {
-  const config = getLevelRoleConfig(member.guild.id);
+  const config = await getLevelRoleConfig(member.guild);
 
   if (level % config.interval !== 0) return;
 

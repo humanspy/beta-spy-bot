@@ -32,6 +32,7 @@ const PERMISSIONS = [
   "kick",
   "ban",
   "hackban",
+  "staffwarn",
   "all",
 ];
 
@@ -128,6 +129,22 @@ async function askChannel(interaction, modalInt, label, description) {
   return channel.id;
 }
 
+async function askNumber(interaction, modalInt, label, description, min, max) {
+  const embed = stepEmbed(
+    `🔢 ${label}`,
+    `${description}\n\nEnter a number between **${min}** and **${max}**.`,
+    "Waiting for number…"
+  );
+
+  const msg = await awaitUserMessage(interaction, modalInt, embed);
+  const value = Number(msg.content.trim());
+
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error("Invalid number");
+  }
+
+  return value;
+}
 async function registerGuildCommands(guildId) {
   const rest = new REST({ version: "10" }).setToken(
     process.env.DISCORD_BOT_TOKEN
@@ -155,7 +172,7 @@ export default {
   async execute(interaction) {
     const sub = interaction.options.getSubcommand(false) ?? "start";
     const guildId = interaction.guild.id;
-    const existing = await getStaffConfig(guildId);
+    const existing = await getStaffConfig(interaction.guild);
 
     /* ===================== VIEW ===================== */
 
@@ -217,7 +234,7 @@ export default {
         });
       }
 
-      await deleteStaffConfig(guildId);
+      await deleteStaffConfig(interaction.guild);
       return interaction.reply({
         embeds: [
           stepEmbed(
@@ -258,7 +275,7 @@ export default {
       });
     }
 
-    await ensureCasesTable(guildId);
+    await ensureCasesTable(interaction.guild);
 
     /* ===================== ROLE COUNT MODAL ===================== */
 
@@ -313,7 +330,20 @@ export default {
       flags: 64,
     });
 
-    const config = { guildId, staffRoles: [], channels: {} };
+    const config = {
+      guildId,
+      staffRoles: [],
+      channels: {},
+      levelRoles: {
+        interval: 1,
+        removePrevious: false,
+        roles: {},
+      },
+      staffWarnConfig: {
+        maxWarns: 3,
+      },
+      overrideCode: null,
+    };
 
     try {
       for (let i = 0; i < roleCount; i++) {
@@ -345,11 +375,25 @@ export default {
         "Mod Logs",
         "This channel receives moderation logs."
       );
+      config.channels.staffWarnings = await askChannel(
+        interaction,
+        modalInt,
+        "Staff Warnings",
+        "This channel receives staff warning logs."
+      );
       config.channels.counting = await askChannel(
         interaction,
         modalInt,
         "Counting",
         "This channel is used for the counting system."
+      );
+      config.staffWarnConfig.maxWarns = await askNumber(
+        interaction,
+        modalInt,
+        "Max Staff Warnings",
+        "Set the maximum number of active staff warnings per staff member.",
+        1,
+        20
       );
     } catch {
       return modalInt.followUp({
@@ -364,8 +408,8 @@ export default {
       });
     }
 
-    await enableCounting(guildId, config.channels.counting);
-    await saveStaffConfig(guildId, config);
+    await enableCounting(interaction.guild, config.channels.counting);
+    await saveStaffConfig(interaction.guild, config);
     await registerGuildCommands(guildId);
 
     await modalInt.followUp({

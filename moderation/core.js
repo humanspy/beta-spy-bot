@@ -1,6 +1,7 @@
 import { pool } from "../database/mysql.js";
 import { EmbedBuilder } from "discord.js";
 import crypto from "crypto";
+import { getGuildTableName } from "../database/tableNames.js";
 import { getStaffConfig } from "./staffConfig.js";
 
 /* ===================== BOT OWNERS ===================== */
@@ -12,16 +13,18 @@ export const botOwners = {
 
 const banOverrideCodes = new Map();
 
-function getCaseTableName(guildId) {
-  const safeId = String(guildId);
-  if (!/^\d+$/.test(safeId)) {
-    throw new Error("Invalid guild id");
-  }
-  return `cases_${safeId}`;
+function normalizeGuild(guild, guildName) {
+  if (typeof guild === "object") return guild;
+  return { id: guild, name: guildName };
 }
 
-export async function ensureCasesTable(guildId) {
-  const tableName = getCaseTableName(guildId);
+function getCaseTableName(guild, guildName) {
+  const context = normalizeGuild(guild, guildName);
+  return getGuildTableName(context, "cases");
+}
+
+export async function ensureCasesTable(guild, guildName) {
+  const tableName = getCaseTableName(guild, guildName);
   await pool.query(
     `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
       case_number INT UNSIGNED NOT NULL,
@@ -63,7 +66,7 @@ export async function isBotOwnerBypass(member) {
 export async function getHighestStaffRole(member) {
   if (!member) return null;
 
-  const config = await getStaffConfig(member.guild.id);
+  const config = await getStaffConfig(member.guild);
   let best = null;
 
   for (const role of config?.staffRoles ?? []) {
@@ -87,8 +90,8 @@ export async function hasPermission(member, permission) {
 
 /* ===================== CASE NUMBER ===================== */
 
-export async function getNextCaseNumber(guildId) {
-  const tableName = await ensureCasesTable(guildId);
+export async function getNextCaseNumber(guildId, guildName) {
+  const tableName = await ensureCasesTable(guildId, guildName);
   const [[row]] = await pool.query(
     `SELECT MAX(case_number) AS max FROM \`${tableName}\``
   );
@@ -102,6 +105,7 @@ export async function getNextCaseNumber(guildId) {
  */
 export async function createCaseAction({
   guildId,
+  guildName,
   userId,
   username,
   type,
@@ -111,7 +115,7 @@ export async function createCaseAction({
   severity,
   duration,
 }) {
-  const tableName = await ensureCasesTable(guildId);
+  const tableName = await ensureCasesTable(guildId, guildName);
   const safeReason = reason || "No reason provided";
 
   const finalSeverity =
@@ -124,7 +128,7 @@ export async function createCaseAction({
       ? duration || null
       : null;
 
-  const caseNumber = await getNextCaseNumber(guildId);
+  const caseNumber = await getNextCaseNumber(guildId, guildName);
 
   await pool.query(
     `INSERT INTO \`${tableName}\`
@@ -155,13 +159,14 @@ export async function createCaseAction({
  */
 export async function createRevertAction({
   guildId,
+  guildName,
   userId,
   type,
   moderatorId,
   moderatorName,
   reason,
 }) {
-  const tableName = await ensureCasesTable(guildId);
+  const tableName = await ensureCasesTable(guildId, guildName);
   await pool.query(
     `INSERT INTO \`${tableName}\`
      (case_number, user_id, type,
@@ -169,7 +174,7 @@ export async function createRevertAction({
       reason, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
-      await getNextCaseNumber(guildId),
+      await getNextCaseNumber(guildId, guildName),
       userId,
       type,
       moderatorId,
@@ -182,8 +187,8 @@ export async function createRevertAction({
 
 /* ===================== CASE LOOKUP ===================== */
 
-export async function loadCaseByNumber(guildId, caseNumber) {
-  const tableName = await ensureCasesTable(guildId);
+export async function loadCaseByNumber(guildId, guildName, caseNumber) {
+  const tableName = await ensureCasesTable(guildId, guildName);
   const [[row]] = await pool.query(
     `SELECT *
      FROM \`${tableName}\`
@@ -194,8 +199,8 @@ export async function loadCaseByNumber(guildId, caseNumber) {
   return row ?? null;
 }
 
-export async function loadCasesForUser(guildId, userId) {
-  const tableName = await ensureCasesTable(guildId);
+export async function loadCasesForUser(guildId, guildName, userId) {
+  const tableName = await ensureCasesTable(guildId, guildName);
   const [rows] = await pool.query(
     `SELECT *
      FROM \`${tableName}\`
@@ -207,8 +212,8 @@ export async function loadCasesForUser(guildId, userId) {
   return rows;
 }
 
-export async function loadCases(guildId) {
-  const tableName = await ensureCasesTable(guildId);
+export async function loadCases(guildId, guildName) {
+  const tableName = await ensureCasesTable(guildId, guildName);
   const [rows] = await pool.query(
     `SELECT *
      FROM \`${tableName}\`
@@ -229,8 +234,8 @@ export async function loadCases(guildId) {
 
 /* ===================== CASE DELETE ===================== */
 
-export async function deleteCase(guildId, caseNumber) {
-  const tableName = await ensureCasesTable(guildId);
+export async function deleteCase(guildId, guildName, caseNumber) {
+  const tableName = await ensureCasesTable(guildId, guildName);
   const [res] = await pool.query(
     `DELETE FROM \`${tableName}\`
      WHERE case_number = ?`,
@@ -261,7 +266,7 @@ export async function logModerationAction({
     if (!staffRole) return;
   }
 
-  const config = await getStaffConfig(guild.id);
+  const config = await getStaffConfig(guild);
   const channelId = config?.channels?.modLogs;
   if (!channelId) return;
 

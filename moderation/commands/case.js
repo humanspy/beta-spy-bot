@@ -16,6 +16,7 @@ export async function caseCmd(interaction, sub) {
     }
 
     const guildId = interaction.guild.id;
+    const guildName = interaction.guild.name;
 
     if (sub === "view") {
       const number = interaction.options.getInteger("number");
@@ -26,7 +27,7 @@ export async function caseCmd(interaction, sub) {
       }
 
       if (number) {
-        const c = await loadCaseByNumber(guildId, number);
+        const c = await loadCaseByNumber(guildId, guildName, number);
         if (!c) return interaction.editReply("❌ Case not found.");
 
         const embed = new EmbedBuilder()
@@ -42,7 +43,7 @@ export async function caseCmd(interaction, sub) {
         return interaction.editReply({ embeds: [embed] });
       }
 
-      const cases = await loadCasesForUser(guildId, user.id);
+      const cases = await loadCasesForUser(guildId, guildName, user.id);
       if (!cases.length) {
         return interaction.editReply("ℹ️ No cases found.");
       }
@@ -72,7 +73,7 @@ export async function caseCmd(interaction, sub) {
       const number = interaction.options.getInteger("number");
       if (!number) return interaction.editReply("❌ Case number required.");
 
-      const ok = await deleteCase(guildId, number);
+      const ok = await deleteCase(guildId, guildName, number);
       if (!ok) return interaction.editReply("❌ Case not found.");
 
       await logModerationAction({
