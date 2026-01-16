@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node index.js",
+    "test": "node index.js",
     "deploy": "node deploy-commands.js"
   },
   "dependencies": {
