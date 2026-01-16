@@ -3,6 +3,7 @@ import {
   handleModmailDM,
   handleModmailThreadMessage,
 } from "./dmHandler.js";
+import { sweepInactiveTickets } from "./ticketManager.js";
 
 /**
  * Slash-command entry for router.js
@@ -29,4 +30,10 @@ export function initModmail(client) {
       // ModMail must never crash the bot
     }
   });
+
+  const sweepIntervalMs = 60 * 60 * 1000;
+  const inactivityMs = 24 * 60 * 60 * 1000;
+  setInterval(() => {
+    sweepInactiveTickets(client, inactivityMs).catch(() => {});
+  }, sweepIntervalMs);
 }

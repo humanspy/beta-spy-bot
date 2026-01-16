@@ -234,9 +234,9 @@ export default {
       anonymousStaff: false,
       appealLimit: 2,
       ticketTypes: {
-        General: { guide: "Describe your issue clearly." },
-        "Bug Report": { guide: "Describe the bug and steps to reproduce it." },
-        "Ban Appeal": { guide: "Explain why your ban should be reviewed." },
+        General: { guide: "Describe your issue clearly.", tags: [] },
+        "Bug Report": { guide: "Describe the bug and steps to reproduce it.", tags: [] },
+        "Ban Appeal": { guide: "Explain why your ban should be reviewed.", tags: [] },
       },
     };
 
@@ -248,7 +248,7 @@ export default {
       for (let i = 0; i < extraCount; i++) {
         const name = await askTypeName(interaction, i + 1, extraCount);
         const guide = await askTypeGuide(interaction, name);
-        config.ticketTypes[name] = { guide };
+        config.ticketTypes[name] = { guide, tags: [] };
       }
 
       config.anonymousStaff = await askAnonymousMode(interaction);

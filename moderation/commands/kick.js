@@ -1,7 +1,9 @@
 import {
+  getHighestStaffRole,
   hasPermission,
   createCaseAction,
   dmAffectedUser,
+  isBotOwner,
   isBotOwnerBypass,
   logModerationAction,
 } from "../core.js";
@@ -21,6 +23,12 @@ export async function kick(interaction) {
 
     if (!member || !member.kickable) {
       return interaction.editReply("❌ Cannot kick this user.");
+    }
+    const staffRole = await getHighestStaffRole(member);
+    if (staffRole && !isBotOwner(interaction.user)) {
+      return interaction.editReply(
+        "❌ Staff are immune to moderation unless a bot owner issues the command."
+      );
     }
 
     await dmAffectedUser({

@@ -1,8 +1,9 @@
 import {
+  getHighestStaffRole,
   hasPermission,
   createCaseAction,
-  createRevertAction,
   dmAffectedUser,
+  isBotOwner,
   isBotOwnerBypass,
   logModerationAction,
 } from "../core.js";
@@ -21,6 +22,18 @@ export async function warn(interaction, sub) {
     const isBypassOwner = await isBotOwnerBypass(interaction.member);
 
     if (sub === "add") {
+      const targetMember = await interaction.guild.members
+        .fetch(user.id)
+        .catch(() => null);
+      if (targetMember) {
+        const staffRole = await getHighestStaffRole(targetMember);
+        if (staffRole && !isBotOwner(interaction.user)) {
+          return interaction.editReply(
+            "❌ Staff are immune to moderation unless a bot owner issues the command."
+          );
+        }
+      }
+
       const severity =
         interaction.options.getString("severity") ?? "minor";
 
@@ -64,33 +77,6 @@ export async function warn(interaction, sub) {
           ? `⚠️ **${user.tag}** warned (Case #${caseNumber}).`
           : `⚠️ **${user.tag}** warned.`
       );
-    }
-
-    if (sub === "remove") {
-      return interaction.editReply("❌ Use **/case remove** to delete a warning case.");
-      if (!isBypassOwner) {
-        await createRevertAction({
-          guildId: interaction.guild.id,
-          guildName: interaction.guild.name,
-          userId: user.id,
-          type: "REVERT_WARN",
-          moderatorId: interaction.user.id,
-          moderatorName: interaction.user.tag,
-          reason: "Warning reverted",
-        });
-      }
-
-      await logModerationAction({
-        guild: interaction.guild,
-        actor: interaction.user,
-        actorMember: interaction.member,
-        action: "✅ Warning Reverted",
-        target: `<@${user.id}> (${user.tag})`,
-        reason: "Warning reverted",
-        color: 0x57f287,
-      });
-
-      return interaction.editReply(`✅ Warning reverted for **${user.tag}**.`);
     }
 
     return interaction.editReply("❌ Invalid subcommand.");
