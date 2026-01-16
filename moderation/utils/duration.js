@@ -26,6 +26,17 @@ export function parseDurationChoice(value) {
   }
 }
 
+/**
+ * Convert a duration choice string into milliseconds
+ * @param {string} value
+ * @returns {number|null}
+ */
+export function parseDuration(value) {
+  const minutes = parseDurationChoice(value);
+  if (!minutes) return null;
+  return minutes * 60 * 1000;
+}
+
 /* ===================== LABEL ===================== */
 
 /**
