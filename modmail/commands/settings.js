@@ -36,12 +36,33 @@ export default async function modmailSettings(interaction) {
     });
   }
 
-  /* ===================== TOGGLE ===================== */
+  /* ===================== UPDATE ===================== */
 
-  config.anonymousStaff = !config.anonymousStaff;
+  const appealLimit = interaction.options.getInteger("appeal_limit");
+  const anonymousSetting = interaction.options.getBoolean("anonymous");
+  const hasExplicitUpdates =
+    appealLimit !== null || anonymousSetting !== null;
+
+  if (!hasExplicitUpdates) {
+    config.anonymousStaff = !config.anonymousStaff;
+  }
+
+  if (anonymousSetting !== null) {
+    config.anonymousStaff = anonymousSetting;
+  }
+
+  if (appealLimit !== null) {
+    config.appealLimit = appealLimit;
+  }
+
   await saveModmailConfig(interaction.guild.id, config);
 
   /* ===================== RESPONSE ===================== */
+
+  const appealText =
+    config.appealLimit > 0
+      ? `**${config.appealLimit}**`
+      : "**Unlimited**";
 
   await interaction.reply({
     embeds: [
@@ -51,7 +72,8 @@ export default async function modmailSettings(interaction) {
         .setDescription(
           `Anonymous staff replies are now **${
             config.anonymousStaff ? "ENABLED" : "DISABLED"
-          }**.\n\n` +
+          }**.\n` +
+          `Ban appeal limit: ${appealText}\n\n` +
           (config.anonymousStaff
             ? "Users will see replies as coming from **Staff**."
             : "Users will see the **staff member’s username**.")

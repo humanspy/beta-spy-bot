@@ -1,5 +1,5 @@
 import { EmbedBuilder } from "discord.js";
-import { getHighestStaffRole, hasPermission, isBotOwner } from "../core.js";
+import { getHighestStaffRole, hasPermission } from "../core.js";
 import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
 import {
   addStaffWarn,
@@ -31,9 +31,9 @@ export default async function staffwarn(interaction, sub) {
         return interaction.editReply("❌ Staff member not found.");
       }
       const staffRole = await getHighestStaffRole(staffMember);
-      if (staffRole && !isBotOwner(interaction.user)) {
+      if (!staffRole) {
         return interaction.editReply(
-          "❌ Staff are immune to moderation unless a bot owner issues the command."
+          "❌ Staff warnings can only be issued to staff members."
         );
       }
 
@@ -147,6 +147,13 @@ export default async function staffwarn(interaction, sub) {
       const staffMember = interaction.options.getMember("user");
       if (!staffMember) {
         return interaction.editReply("❌ Staff member not found.");
+      }
+
+      const staffRole = await getHighestStaffRole(staffMember);
+      if (!staffRole) {
+        return interaction.editReply(
+          "❌ Staff warnings can only be listed for staff members."
+        );
       }
 
       const warns = await getActiveStaffWarns(
