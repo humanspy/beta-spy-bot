@@ -8,7 +8,22 @@ export const guildCommands = [
     .setName("modmail")
     .setDescription("Setup Modmail")
     .addSubcommand(sub => sub.setName("setup").setDescription("Run setup"))
-    .addSubcommand(sub => sub.setName("settings").setDescription("Change Settings")),
+    .addSubcommand(sub =>
+      sub
+        .setName("settings")
+        .setDescription("Change Settings")
+        .addIntegerOption(opt =>
+          opt
+            .setName("appeal_limit")
+            .setDescription("Ban appeal limit (0 = unlimited)")
+            .setMinValue(0)
+        )
+        .addBooleanOption(opt =>
+          opt
+            .setName("anonymous")
+            .setDescription("Set anonymous staff replies on or off")
+        )
+    ),
   
   new SlashCommandBuilder()
     .setName("setup")
