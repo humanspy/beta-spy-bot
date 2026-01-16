@@ -3,6 +3,7 @@ import {
   loadCaseByNumber,
   loadCasesForUser,
   deleteCase,
+  logModerationAction,
 } from "../core.js";
 import { EmbedBuilder } from "discord.js";
 
@@ -10,7 +11,7 @@ export async function caseCmd(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!hasPermission(interaction.member, "case")) {
+    if (!(await hasPermission(interaction.member, "case"))) {
       return interaction.editReply("❌ No permission.");
     }
 
@@ -62,11 +63,27 @@ export async function caseCmd(interaction, sub) {
     }
 
     if (sub === "remove") {
+      return interaction.editReply(
+        "❌ Use **/case delete**. Case deletion does not revert warnings."
+      );
+    }
+
+    if (sub === "delete") {
       const number = interaction.options.getInteger("number");
       if (!number) return interaction.editReply("❌ Case number required.");
 
       const ok = await deleteCase(guildId, number);
       if (!ok) return interaction.editReply("❌ Case not found.");
+
+      await logModerationAction({
+        guild: interaction.guild,
+        actor: interaction.user,
+        actorMember: interaction.member,
+        action: "🗑️ Case Deleted",
+        target: `Case #${number}`,
+        reason: "Case deleted via command",
+        color: 0x95a5a6,
+      });
 
       return interaction.editReply(`🗑️ Case **#${number}** deleted.`);
     }

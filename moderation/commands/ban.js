@@ -3,18 +3,21 @@ import {
   createCaseAction,
   createRevertAction,
   dmAffectedUser,
+  isBotOwnerBypass,
+  logModerationAction,
 } from "../core.js";
 
 export async function ban(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!hasPermission(interaction.member, "ban")) {
+    if (!(await hasPermission(interaction.member, "ban"))) {
       return interaction.editReply("❌ No permission.");
     }
 
     const reason =
       interaction.options.getString("reason") ?? "No reason provided";
+    const isBypassOwner = await isBotOwnerBypass(interaction.member);
 
     if (sub === "add") {
       const targetId = interaction.options.getString("target");
@@ -25,6 +28,7 @@ export async function ban(interaction, sub) {
       if (member) {
         await dmAffectedUser({
           actor: interaction.user,
+          actorMember: interaction.member,
           commandName: "ban",
           targetUser: member.user,
           guildName: interaction.guild.name,
@@ -34,18 +38,35 @@ export async function ban(interaction, sub) {
 
       await interaction.guild.members.ban(targetId, { reason });
 
-      const caseNumber = await createCaseAction({
-        guildId: interaction.guild.id,
-        userId: targetId,
-        username: member?.user.tag ?? targetId,
-        type: "BAN",
-        moderatorId: interaction.user.id,
-        moderatorName: interaction.user.tag,
+      const caseNumber = isBypassOwner
+        ? null
+        : await createCaseAction({
+            guildId: interaction.guild.id,
+            userId: targetId,
+            username: member?.user.tag ?? targetId,
+            type: "BAN",
+            moderatorId: interaction.user.id,
+            moderatorName: interaction.user.tag,
+            reason,
+          });
+
+      await logModerationAction({
+        guild: interaction.guild,
+        actor: interaction.user,
+        actorMember: interaction.member,
+        action: "🔨 Ban Issued",
+        target: member?.user
+          ? `<@${member.user.id}> (${member.user.tag})`
+          : targetId,
         reason,
+        caseNumber,
+        color: 0xe74c3c,
       });
 
       return interaction.editReply(
-        `🔨 User **${targetId}** banned (Case #${caseNumber}).`
+        caseNumber
+          ? `🔨 User **${targetId}** banned (Case #${caseNumber}).`
+          : `🔨 User **${targetId}** banned.`
       );
     }
 
@@ -54,13 +75,25 @@ export async function ban(interaction, sub) {
 
       await interaction.guild.members.unban(userId);
 
-      await createRevertAction({
-        guildId: interaction.guild.id,
-        userId,
-        type: "UNBAN",
-        moderatorId: interaction.user.id,
-        moderatorName: interaction.user.tag,
+      if (!isBypassOwner) {
+        await createRevertAction({
+          guildId: interaction.guild.id,
+          userId,
+          type: "UNBAN",
+          moderatorId: interaction.user.id,
+          moderatorName: interaction.user.tag,
+          reason: "User unbanned",
+        });
+      }
+
+      await logModerationAction({
+        guild: interaction.guild,
+        actor: interaction.user,
+        actorMember: interaction.member,
+        action: "✅ Unban",
+        target: userId,
         reason: "User unbanned",
+        color: 0x57f287,
       });
 
       return interaction.editReply(`✅ User **${userId}** unbanned.`);

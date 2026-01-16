@@ -18,19 +18,8 @@ import {
 } from "../staffConfig.js";
 
 import { enableCounting } from "../../counting/storage.js";
-import { hasPermission } from "../core.js";
+import { hasPermission, ensureCasesTable } from "../core.js";
 import { guildCommands } from "../../guild-commands.js";
-
-import { fetchSetupMessage } from "../core.js";
-
-const msg = await fetchSetupMessage(interaction);
-if (!msg) {
-  return interaction.followUp({
-    content: "❌ Setup timed out.",
-    ephemeral: true,
-  });
-}
-
 
 /* ===================== CONSTANTS ===================== */
 
@@ -50,10 +39,10 @@ const WIZARD_TIMEOUT = 5 * 60 * 1000;
 
 /* ===================== HELPERS ===================== */
 
-function canModifySetup(interaction) {
+async function canModifySetup(interaction) {
   return (
     interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
-    hasPermission(interaction.member, "setup")
+    (await hasPermission(interaction.member, "setup"))
   );
 }
 
@@ -66,7 +55,7 @@ function stepEmbed(title, description, footer) {
 }
 
 async function awaitUserMessage(interaction, modalInt, embed) {
-  await modalInt.followUp({ embeds: [embed], flags: 64 });
+  const promptMessage = await modalInt.followUp({ embeds: [embed], flags: 64 });
 
   const collected = await interaction.channel.awaitMessages({
     max: 1,
@@ -75,7 +64,13 @@ async function awaitUserMessage(interaction, modalInt, embed) {
   });
 
   const msg = collected.first();
+  if (!msg) {
+    await promptMessage.delete().catch(() => {});
+    throw new Error("Timeout");
+  }
+
   await msg.delete().catch(() => {});
+  await promptMessage.delete().catch(() => {});
   return msg;
 }
 
@@ -160,7 +155,7 @@ export default {
   async execute(interaction) {
     const sub = interaction.options.getSubcommand(false) ?? "start";
     const guildId = interaction.guild.id;
-    const existing = getStaffConfig(guildId);
+    const existing = await getStaffConfig(guildId);
 
     /* ===================== VIEW ===================== */
 
@@ -209,7 +204,7 @@ export default {
     /* ===================== RESET ===================== */
 
     if (sub === "reset") {
-      if (!canModifySetup(interaction)) {
+      if (!(await canModifySetup(interaction))) {
         return interaction.reply({
           embeds: [
             stepEmbed(
@@ -222,7 +217,7 @@ export default {
         });
       }
 
-      deleteStaffConfig(guildId);
+      await deleteStaffConfig(guildId);
       return interaction.reply({
         embeds: [
           stepEmbed(
@@ -237,7 +232,7 @@ export default {
 
     /* ===================== START ===================== */
 
-    if (!canModifySetup(interaction)) {
+    if (!(await canModifySetup(interaction))) {
       return interaction.reply({
         embeds: [
           stepEmbed(
@@ -262,6 +257,8 @@ export default {
         flags: 64,
       });
     }
+
+    await ensureCasesTable(guildId);
 
     /* ===================== ROLE COUNT MODAL ===================== */
 
@@ -338,7 +335,9 @@ export default {
         interaction,
         modalInt,
         "Override Codes",
-        "This channel receives generated override codes."
+        "This channel receives generated override codes. " +
+          "Staff without **ban**/**hackban** permissions can use these codes " +
+          "to perform a ban or hackban."
       );
       config.channels.modLogs = await askChannel(
         interaction,
@@ -366,7 +365,7 @@ export default {
     }
 
     await enableCounting(guildId, config.channels.counting);
-    saveStaffConfig(guildId, config);
+    await saveStaffConfig(guildId, config);
     await registerGuildCommands(guildId);
 
     await modalInt.followUp({
