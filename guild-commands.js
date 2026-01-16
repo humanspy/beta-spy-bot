@@ -31,6 +31,10 @@ export const guildCommands = [
     .addSubcommand(sub => sub.setName("start").setDescription("Run setup"))
     .addSubcommand(sub => sub.setName("view").setDescription("View setup"))
     .addSubcommand(sub => sub.setName("reset").setDescription("Reset setup")),
+
+  new SlashCommandBuilder()
+    .setName("update")
+    .setDescription("Refresh guild slash commands"),
   
   new SlashCommandBuilder()
     .setName("warn")
