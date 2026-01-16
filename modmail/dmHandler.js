@@ -31,13 +31,12 @@ function isStaffThreadMessage(message, forumChannelId) {
   );
 }
 
-async function getSharedGuilds(client, userId) {
+async function getEnabledGuilds(client) {
   const results = [];
   for (const guild of client.guilds.cache.values()) {
     const config = await loadModmailConfig(guild.id);
     if (!config?.enabled) continue;
-    const member = await guild.members.fetch(userId).catch(() => null);
-    if (member) results.push(guild);
+    results.push(guild);
   }
   return results;
 }
@@ -75,6 +74,25 @@ async function getAppealEligibleGuilds(client, userId) {
   return results;
 }
 
+function buildUserMessageEmbed(message) {
+  const description = message.content?.trim()
+    ? message.content
+    : "*Attachment(s) only*";
+  return new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setAuthor({
+      name: message.author.tag,
+      iconURL: message.author.displayAvatarURL(),
+    })
+    .setDescription(description)
+    .setTimestamp();
+}
+
+function getMessageFiles(message) {
+  if (!message.attachments?.size) return [];
+  return message.attachments.map(attachment => attachment.url);
+}
+
 /* ===================== USER → BOT ===================== */
 
 export async function handleModmailDM(message, client) {
@@ -88,17 +106,24 @@ export async function handleModmailDM(message, client) {
   if (!state) {
     const existingTicket = await getOpenTicketByUser(userId);
     if (existingTicket) {
-      const closeRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`modmail_close:${existingTicket.threadId}`)
-          .setLabel("Close Ticket")
-          .setStyle(ButtonStyle.Danger)
-      );
-      return message.reply({
-        content:
-          "ℹ️ You already have an open ticket. Close it to start a new one.",
-        components: [closeRow],
-      });
+      const thread = await client.channels
+        .fetch(existingTicket.threadId)
+        .catch(() => null);
+      if (!thread?.isThread()) {
+        return message.reply(
+          "❌ Your open ticket could not be found. Please contact staff."
+        );
+      }
+
+      const embed = buildUserMessageEmbed(message);
+      const files = getMessageFiles(message);
+      const sent = await thread
+        .send({ embeds: [embed], files })
+        .catch(() => null);
+      if (sent) {
+        await updateTicketActivity(existingTicket.threadId, sent.id);
+      }
+      return;
     }
   }
 
@@ -167,8 +192,8 @@ export async function handleModmailDM(message, client) {
   }
 
   if (!state) {
-    const sharedGuilds = await getSharedGuilds(client, userId);
-    const options = sharedGuilds
+    const enabledGuilds = await getEnabledGuilds(client);
+    const options = enabledGuilds
       .slice(0, 24)
       .map(guild => ({
         label: guild.name,
