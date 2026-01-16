@@ -8,6 +8,7 @@ import generatebancode from "./generatebancode.js";
 import setup from "./setup.js";
 import kick from "./kick.js";
 import staffwarn from "./staffwarn.js";
+import update from "./update.js";
 
 export async function handleModeration(interaction) {
   const command = interaction.commandName;
@@ -23,6 +24,7 @@ export async function handleModeration(interaction) {
   if (command === "generatebancode") return generatebancode(interaction);
   if (command === "staffwarn") return staffwarn(interaction, sub);
   if (command === "setup") return setup.execute(interaction);
+  if (command === "update") return update(interaction);
 
   return false;
 }
