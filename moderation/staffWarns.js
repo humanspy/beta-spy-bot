@@ -95,12 +95,5 @@ export async function removeStaffWarn(guild, warnId) {
   );
   if (!result.affectedRows) return false;
 
-  await pool.query(
-    `UPDATE \`${tableName}\`
-     SET warn_id = warn_id - 1
-     WHERE warn_id > ?`,
-    [warnId]
-  );
-
   return true;
 }
