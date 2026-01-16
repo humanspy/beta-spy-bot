@@ -10,12 +10,72 @@ import {
 import { lvlrolesWizard } from "./lvlrolesWizard.js";
 import { setLevelRoleConfig } from "./levelroles.js";
 
+function buildRolePrompt(level) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle(`Level ${level}`)
+        .setDescription(
+          `Ping a role or paste a role ID for **level ${level}**.\n\n` +
+            "Or press **Skip**."
+        ),
+    ],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("lvlroles_skip")
+          .setLabel("Skip")
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ],
+  };
+}
+
+function buildRemovePreviousPrompt() {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Remove Previous Roles?")
+        .setDescription(
+          "Should the previous level role be removed when a new one is earned?"
+        ),
+    ],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("lvlroles_remove_yes")
+          .setLabel("Yes")
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId("lvlroles_remove_no")
+          .setLabel("No")
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ],
+  };
+}
+
+async function sendRolePromptToChannel(channel, level) {
+  await channel.send(buildRolePrompt(level));
+}
+
+async function sendRemovePreviousToChannel(channel) {
+  await channel.send(buildRemovePreviousPrompt());
+}
+
 export async function handleLevelRoleComponents(interaction) {
   const guildId = interaction.guild?.id;
   if (!guildId) return false;
 
   const state = lvlrolesWizard.get(guildId);
   if (!state) return false;
+  if (state.userId && interaction.user.id !== state.userId) {
+    await interaction.reply({
+      content: "❌ Only the setup user can respond to this wizard.",
+      ephemeral: true,
+    });
+    return true;
+  }
 
   /* ===================== INTERVAL BUTTON ===================== */
 
@@ -119,29 +179,36 @@ export async function handleLevelRoleComponents(interaction) {
     return true;
   }
 
-  /* ===================== ROLE INPUT (MESSAGE) ===================== */
+  return false;
+}
 
-  if (state.step === "roles" && interaction.isRepliable() === false) {
-    const content = interaction.content ?? "";
-    const roleId =
-      interaction.mentions?.roles?.first()?.id ||
-      content.match(/\d{17,19}/)?.[0];
+export async function handleLevelRoleMessage(message) {
+  if (!message.guild || message.author.bot) return false;
+  const state = lvlrolesWizard.get(message.guild.id);
+  if (!state || state.step !== "roles") return false;
+  if (state.userId && message.author.id !== state.userId) return false;
 
-    if (roleId) {
-      state.roles[state.currentLevel] = roleId;
-    }
+  const content = message.content ?? "";
+  const roleId =
+    message.mentions?.roles?.first()?.id ||
+    content.match(/\d{17,19}/)?.[0];
 
-    state.currentLevel += state.interval;
-
-    if (state.currentLevel > 100) {
-      state.step = "remove";
-      return askRemovePrevious(interaction);
-    }
-
-    return askForRole(interaction);
+  if (roleId) {
+    state.roles[state.currentLevel] = roleId;
   }
 
-  return false;
+  await message.delete().catch(() => {});
+
+  state.currentLevel += state.interval;
+
+  if (state.currentLevel > 100) {
+    state.step = "remove";
+    await sendRemovePreviousToChannel(message.channel);
+    return true;
+  }
+
+  await sendRolePromptToChannel(message.channel, state.currentLevel);
+  return true;
 }
 
 /* ===================== EMBED HELPERS ===================== */
@@ -149,50 +216,18 @@ export async function handleLevelRoleComponents(interaction) {
 async function askForRole(interaction) {
   const state = lvlrolesWizard.get(interaction.guild.id);
 
-  const embed = new EmbedBuilder()
-    .setTitle(`Level ${state.currentLevel}`)
-    .setDescription(
-      `Ping a role or paste a role ID for **level ${state.currentLevel}**.\n\n` +
-      "Or press **Skip**."
-    );
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("lvlroles_skip")
-      .setLabel("Skip")
-      .setStyle(ButtonStyle.Secondary)
-  );
-
   if (interaction.update) {
-    await interaction.update({ embeds: [embed], components: [row] });
+    await interaction.update(buildRolePrompt(state.currentLevel));
   } else {
     await interaction.reply({
-      embeds: [embed],
-      components: [row],
+      ...buildRolePrompt(state.currentLevel),
       ephemeral: true,
     });
   }
 }
 
 async function askRemovePrevious(interaction) {
-  const embed = new EmbedBuilder()
-    .setTitle("Remove Previous Roles?")
-    .setDescription(
-      "Should the previous level role be removed when a new one is earned?"
-    );
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("lvlroles_remove_yes")
-      .setLabel("Yes")
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId("lvlroles_remove_no")
-      .setLabel("No")
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  await interaction.update({ embeds: [embed], components: [row] });
+  await interaction.update(buildRemovePreviousPrompt());
 }
 
 async function showPreview(interaction) {
