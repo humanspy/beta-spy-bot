@@ -8,6 +8,7 @@ import { lvlrolesWizard } from "../lvlrolesWizard.js";
 
 export default async function lvlrolesSetup(interaction) {
   lvlrolesWizard.set(interaction.guild.id, {
+    userId: interaction.user.id,
     step: "interval",
     interval: null,
     currentLevel: 1,

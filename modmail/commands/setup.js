@@ -124,6 +124,25 @@ async function askAnonymousMode(interaction) {
   return value === "yes";
 }
 
+async function askAppealLimit(interaction) {
+  const embed = stepEmbed(
+    "⛔ Ban Appeal Limit",
+    "How many **ban appeals** can a user submit?\n\n" +
+      "Enter a number.\n" +
+      "`0` = unlimited",
+    "Waiting for limit…"
+  );
+
+  const msg = await awaitUserMessage(interaction, embed);
+  const limit = Number(msg.content.trim());
+
+  if (Number.isNaN(limit) || limit < 0 || !Number.isInteger(limit)) {
+    throw new Error("invalid_count");
+  }
+
+  return limit;
+}
+
 /* ===================== COMMAND ===================== */
 
 export default {
@@ -251,6 +270,7 @@ export default {
         config.ticketTypes[name] = { guide, tags: [] };
       }
 
+      config.appealLimit = await askAppealLimit(interaction);
       config.anonymousStaff = await askAnonymousMode(interaction);
     } catch {
       return interaction.followUp({
@@ -274,6 +294,9 @@ export default {
           "ModMail has been configured successfully.\n\n" +
             "📨 Users can now open tickets via DM\n" +
             "🔔 Tickets will ping @everyone\n" +
+            `⛔ Ban appeal limit: **${
+              config.appealLimit > 0 ? config.appealLimit : "Unlimited"
+            }**\n` +
             `🕵️ Anonymous replies: **${
               config.anonymousStaff ? "ENABLED" : "DISABLED"
             }**`,

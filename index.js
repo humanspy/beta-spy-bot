@@ -20,7 +20,10 @@ import { getStaffConfig, initStaffConfigCache } from "./moderation/staffConfig.j
 import { handleCounting } from "./counting/index.js";
 import { handleLeveling } from "./profile/level/index.js";
 
-import { handleLevelRoleComponents } from "./profile/level/core.js";
+import {
+  handleLevelRoleComponents,
+  handleLevelRoleMessage,
+} from "./profile/level/core.js";
 import { handleModmailCore } from "./modmail/core.js";
 import { initModmail } from "./modmail/index.js";
 import { routeInteraction } from "./router.js";
@@ -123,6 +126,8 @@ client.on("interactionCreate", async interaction => {
 
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
+
+  await handleLevelRoleMessage(message);
 
   // 🔢 Counting system (setup-gated)
   await handleCounting(message);
