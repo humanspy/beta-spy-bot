@@ -1,47 +1,84 @@
-import fs from "fs/promises";
+import { pool } from "../database/mysql.js";
+import { getGuildTableName } from "../database/tableNames.js";
 
-const FILE = "./counting/data.json";
-
-async function load() {
-  try {
-    return JSON.parse(await fs.readFile(FILE, "utf8"));
-  } catch {
-    return {};
-  }
+async function ensureCountingTable(guild) {
+  const tableName = getGuildTableName(guild, "counting");
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
+      id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+      setup_completed TINYINT(1) NOT NULL DEFAULT 0,
+      channel_id VARCHAR(32) NULL,
+      current INT NOT NULL DEFAULT 0,
+      last_user_id VARCHAR(32) NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP
+    )`
+  );
+  return tableName;
 }
 
-async function save(data) {
-  await fs.mkdir("./counting", { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify(data, null, 2));
-}
+export async function getCountingData(guild) {
+  const tableName = await ensureCountingTable(guild);
+  const [rows] = await pool.query(
+    `SELECT setup_completed, channel_id, current, last_user_id
+     FROM \`${tableName}\`
+     WHERE id = 1`
+  );
 
-export async function getCountingData(guildId) {
-  const data = await load();
-  if (!data[guildId]) {
-    data[guildId] = {
+  if (!rows.length) {
+    await pool.query(
+      `INSERT INTO \`${tableName}\`
+       (id, setup_completed, channel_id, current, last_user_id)
+       VALUES (1, 0, NULL, 0, NULL)`
+    );
+    return {
       setupCompleted: false,
       channelId: null,
       current: 0,
-      lastUserId: null
+      lastUserId: null,
     };
-    await save(data);
   }
-  return data[guildId];
-}
 
-export async function enableCounting(guildId, channelId) {
-  const data = await load();
-  data[guildId] = {
-    setupCompleted: true,
-    channelId,
-    current: 0,
-    lastUserId: null
+  const row = rows[0];
+  return {
+    setupCompleted: Boolean(row.setup_completed),
+    channelId: row.channel_id,
+    current: row.current ?? 0,
+    lastUserId: row.last_user_id ?? null,
   };
-  await save(data);
 }
 
-export async function updateCountingData(guildId, newData) {
-  const data = await load();
-  data[guildId] = newData;
-  await save(data);
+export async function enableCounting(guild, channelId) {
+  const tableName = await ensureCountingTable(guild);
+  await pool.query(
+    `INSERT INTO \`${tableName}\`
+     (id, setup_completed, channel_id, current, last_user_id)
+     VALUES (1, 1, ?, 0, NULL)
+     ON DUPLICATE KEY UPDATE
+       setup_completed = VALUES(setup_completed),
+       channel_id = VALUES(channel_id),
+       current = VALUES(current),
+       last_user_id = VALUES(last_user_id)`,
+    [channelId]
+  );
+}
+
+export async function updateCountingData(guild, newData) {
+  const tableName = await ensureCountingTable(guild);
+  await pool.query(
+    `INSERT INTO \`${tableName}\`
+     (id, setup_completed, channel_id, current, last_user_id)
+     VALUES (1, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       setup_completed = VALUES(setup_completed),
+       channel_id = VALUES(channel_id),
+       current = VALUES(current),
+       last_user_id = VALUES(last_user_id)`,
+    [
+      newData.setupCompleted ? 1 : 0,
+      newData.channelId,
+      newData.current ?? 0,
+      newData.lastUserId ?? null,
+    ]
+  );
 }

@@ -6,12 +6,28 @@ import {
   isBotOwnerBypass,
   logModerationAction,
 } from "../core.js";
+import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
 
 export async function ban(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!(await hasPermission(interaction.member, "ban"))) {
+    const canBan = await hasPermission(interaction.member, "ban");
+    let overrideUsed = false;
+    if (!canBan && sub === "add") {
+      const overrideCode = interaction.options.getString("override_code");
+      const config = await getStaffConfig(interaction.guild);
+      const storedCode = config?.overrideCode;
+      if (!overrideCode || !storedCode) {
+        return interaction.editReply("❌ No permission.");
+      }
+      if (overrideCode.trim().toUpperCase() !== storedCode.trim().toUpperCase()) {
+        return interaction.editReply("❌ Invalid override code.");
+      }
+      overrideUsed = true;
+      config.overrideCode = null;
+      await saveStaffConfig(interaction.guild, config);
+    } else if (!canBan) {
       return interaction.editReply("❌ No permission.");
     }
 
@@ -42,6 +58,7 @@ export async function ban(interaction, sub) {
         ? null
         : await createCaseAction({
             guildId: interaction.guild.id,
+            guildName: interaction.guild.name,
             userId: targetId,
             username: member?.user.tag ?? targetId,
             type: "BAN",
@@ -63,10 +80,11 @@ export async function ban(interaction, sub) {
         color: 0xe74c3c,
       });
 
+      const overrideNote = overrideUsed ? " (override code used)" : "";
       return interaction.editReply(
         caseNumber
-          ? `🔨 User **${targetId}** banned (Case #${caseNumber}).`
-          : `🔨 User **${targetId}** banned.`
+          ? `🔨 User **${targetId}** banned (Case #${caseNumber})${overrideNote}.`
+          : `🔨 User **${targetId}** banned${overrideNote}.`
       );
     }
 
@@ -78,6 +96,7 @@ export async function ban(interaction, sub) {
       if (!isBypassOwner) {
         await createRevertAction({
           guildId: interaction.guild.id,
+          guildName: interaction.guild.name,
           userId,
           type: "UNBAN",
           moderatorId: interaction.user.id,

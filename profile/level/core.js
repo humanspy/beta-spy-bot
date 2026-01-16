@@ -41,18 +41,18 @@ export async function handleLevelRoleComponents(interaction) {
     interaction.isModalSubmit() &&
     interaction.customId === "lvlroles_interval_modal"
   ) {
-    const interval = Number(
+    const intervalInput = Number(
       interaction.fields.getTextInputValue("interval")
     );
 
-    if (!interval || interval < 1 || interval > 100) {
+    if (!intervalInput || intervalInput < 1 || intervalInput > 100) {
       return interaction.reply({
         content: "❌ Invalid interval.",
         ephemeral: true,
       });
     }
 
-    state.interval = interval;
+    state.interval = intervalInput;
     state.step = "roles";
     state.currentLevel = 1;
 
@@ -87,7 +87,7 @@ export async function handleLevelRoleComponents(interaction) {
   /* ===================== CONFIRM / CANCEL ===================== */
 
   if (interaction.isButton() && interaction.customId === "lvlroles_confirm") {
-    setLevelRoleConfig(guildId, {
+    await setLevelRoleConfig(interaction.guild, {
       interval: state.interval,
       removePrevious: state.removePrevious,
       roles: state.roles,

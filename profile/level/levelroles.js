@@ -1,34 +1,29 @@
-import fs from "fs";
-import path from "path";
+import { getStaffConfig, saveStaffConfig } from "../../moderation/staffConfig.js";
 
-const FILE = path.resolve("profile/level/roles.json");
-
-if (!fs.existsSync(FILE)) {
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify({}));
+function getDefaultLevelRoles() {
+  return {
+    interval: 1,
+    removePrevious: false,
+    roles: {},
+  };
 }
 
-function load() {
-  return JSON.parse(fs.readFileSync(FILE, "utf8"));
+export async function getLevelRoleConfig(guild) {
+  const config = await getStaffConfig(guild);
+  return config?.levelRoles ?? getDefaultLevelRoles();
 }
 
-function save(data) {
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
-}
-
-export function getLevelRoleConfig(guildId) {
-  const data = load();
-  return (
-    data[guildId] ?? {
-      interval: 1,
-      removePrevious: false,
-      roles: {},
-    }
-  );
-}
-
-export function setLevelRoleConfig(guildId, config) {
-  const data = load();
-  data[guildId] = config;
-  save(data);
+export async function setLevelRoleConfig(guild, levelRoles) {
+  const existing = (await getStaffConfig(guild)) ?? {
+    guildId: guild.id,
+    staffRoles: [],
+    channels: {},
+    levelRoles: getDefaultLevelRoles(),
+    staffWarnConfig: {
+      maxWarns: 3,
+    },
+    overrideCode: null,
+  };
+  existing.levelRoles = levelRoles;
+  await saveStaffConfig(guild, existing);
 }

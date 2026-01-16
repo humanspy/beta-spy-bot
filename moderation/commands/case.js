@@ -16,6 +16,7 @@ export async function caseCmd(interaction, sub) {
     }
 
     const guildId = interaction.guild.id;
+    const guildName = interaction.guild.name;
 
     if (sub === "view") {
       const number = interaction.options.getInteger("number");
@@ -26,7 +27,7 @@ export async function caseCmd(interaction, sub) {
       }
 
       if (number) {
-        const c = await loadCaseByNumber(guildId, number);
+        const c = await loadCaseByNumber(guildId, guildName, number);
         if (!c) return interaction.editReply("❌ Case not found.");
 
         const embed = new EmbedBuilder()
@@ -42,7 +43,7 @@ export async function caseCmd(interaction, sub) {
         return interaction.editReply({ embeds: [embed] });
       }
 
-      const cases = await loadCasesForUser(guildId, user.id);
+      const cases = await loadCasesForUser(guildId, guildName, user.id);
       if (!cases.length) {
         return interaction.editReply("ℹ️ No cases found.");
       }
@@ -63,29 +64,23 @@ export async function caseCmd(interaction, sub) {
     }
 
     if (sub === "remove") {
-      return interaction.editReply(
-        "❌ Use **/case delete**. Case deletion does not revert warnings."
-      );
-    }
-
-    if (sub === "delete") {
       const number = interaction.options.getInteger("number");
       if (!number) return interaction.editReply("❌ Case number required.");
 
-      const ok = await deleteCase(guildId, number);
+      const ok = await deleteCase(guildId, guildName, number);
       if (!ok) return interaction.editReply("❌ Case not found.");
 
       await logModerationAction({
         guild: interaction.guild,
         actor: interaction.user,
         actorMember: interaction.member,
-        action: "🗑️ Case Deleted",
+        action: "🗑️ Case Removed",
         target: `Case #${number}`,
-        reason: "Case deleted via command",
+        reason: "Case removed via command",
         color: 0x95a5a6,
       });
 
-      return interaction.editReply(`🗑️ Case **#${number}** deleted.`);
+      return interaction.editReply(`🗑️ Case **#${number}** removed.`);
     }
 
     return interaction.editReply("❌ Invalid subcommand.");

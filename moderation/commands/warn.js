@@ -28,6 +28,7 @@ export async function warn(interaction, sub) {
         ? null
         : await createCaseAction({
             guildId: interaction.guild.id,
+            guildName: interaction.guild.name,
             userId: user.id,
             username: user.tag,
             type: "WARN",
@@ -65,29 +66,8 @@ export async function warn(interaction, sub) {
       );
     }
 
-    if (sub === "revert") {
-      if (!isBypassOwner) {
-        await createRevertAction({
-          guildId: interaction.guild.id,
-          userId: user.id,
-          type: "REVERT_WARN",
-          moderatorId: interaction.user.id,
-          moderatorName: interaction.user.tag,
-          reason: "Warning reverted",
-        });
-      }
-
-      await logModerationAction({
-        guild: interaction.guild,
-        actor: interaction.user,
-        actorMember: interaction.member,
-        action: "✅ Warning Reverted",
-        target: `<@${user.id}> (${user.tag})`,
-        reason: "Warning reverted",
-        color: 0x57f287,
-      });
-
-      return interaction.editReply(`✅ Warning reverted for **${user.tag}**.`);
+    if (sub === "remove") {
+      return interaction.editReply("❌ Use **/case remove** to delete a warning case.");
     }
 
     return interaction.editReply("❌ Invalid subcommand.");

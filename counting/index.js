@@ -9,7 +9,7 @@ export async function handleCounting(message) {
   if (!message.guild) return;
   if (message.author.bot) return;
 
-  const counting = await getCountingData(message.guild.id);
+  const counting = await getCountingData(message.guild);
 
   if (!counting.channelId) return;
   if (message.channel.id !== counting.channelId) return;
@@ -28,7 +28,7 @@ export async function handleCounting(message) {
     );
     counting.current = 0;
     counting.lastUserId = null;
-    await updateCountingData(message.guild.id, counting);
+    await updateCountingData(message.guild, counting);
     return;
   }
 
@@ -39,7 +39,7 @@ export async function handleCounting(message) {
     );
     counting.current = 0;
     counting.lastUserId = null;
-    await updateCountingData(message.guild.id, counting);
+    await updateCountingData(message.guild, counting);
     return;
   }
 
@@ -55,5 +55,5 @@ export async function handleCounting(message) {
 
   counting.current = value;
   counting.lastUserId = message.author.id;
-  await updateCountingData(message.guild.id, counting);
+  await updateCountingData(message.guild, counting);
 }

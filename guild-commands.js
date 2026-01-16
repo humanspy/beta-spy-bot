@@ -134,8 +134,8 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("delete")
-        .setDescription("Delete a case")
+      sub.setName("remove")
+        .setDescription("Remove a case")
         .addIntegerOption(o =>
           o.setName("number").setDescription("Case number").setRequired(true)
         )
@@ -152,8 +152,53 @@ export const guildCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("Kick a user")
+    .addUserOption(o =>
+      o.setName("user").setDescription("User").setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("reason").setDescription("Reason")
+    ),
+
+  new SlashCommandBuilder()
     .setName("generatebancode")
     .setDescription("Generate a one-time ban override code"),
+
+  new SlashCommandBuilder()
+    .setName("staffwarn")
+    .setDescription("Manage staff warnings")
+    .addSubcommand(sub =>
+      sub.setName("add")
+        .setDescription("Warn a staff member")
+        .addUserOption(o =>
+          o.setName("user").setDescription("Staff member").setRequired(true)
+        )
+        .addStringOption(o =>
+          o.setName("reason").setDescription("Reason")
+        )
+    )
+    .addSubcommand(sub =>
+      sub.setName("remove")
+        .setDescription("Remove a staff warning")
+        .addIntegerOption(o =>
+          o.setName("warn_id").setDescription("Warning ID").setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub.setName("list")
+        .setDescription("List staff warnings")
+        .addUserOption(o =>
+          o.setName("user").setDescription("Staff member").setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub.setName("config")
+        .setDescription("Configure staff warning limits")
+        .addIntegerOption(o =>
+          o.setName("max_warns").setDescription("Max active warns (1–20)").setRequired(true)
+        )
+    ),
 
   new SlashCommandBuilder()
     .setName("help")
