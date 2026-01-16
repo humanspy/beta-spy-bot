@@ -12,7 +12,8 @@ export default async function help(interaction) {
       "**/purge**\n" +
       "**/kick**\n" +
       "**/staffwarn add | remove | list | config**\n" +
-      "**/generatebancode**"
+      "**/generatebancode**\n" +
+      "**/regentimer**"
     )
     .setTimestamp();
 

@@ -29,9 +29,11 @@ const PERMISSIONS = [
   "warnstaff",
   "timeout",
   "case",
+  "case_delete",
   "purge",
   "kick",
   "ban",
+  "unban",
   "hackban",
   "all",
 ];
@@ -343,6 +345,7 @@ export default {
         maxWarns: 3,
       },
       overrideCode: null,
+      overrideRegenHours: 24,
     };
 
     try {
@@ -368,6 +371,14 @@ export default {
         "This channel receives generated override codes. " +
           "Staff without **ban**/**hackban** permissions can use these codes " +
           "to perform a ban or hackban."
+      );
+      config.overrideRegenHours = await askNumber(
+        interaction,
+        modalInt,
+        "Override Code Regen Timer",
+        "Set the number of hours before a new override code is regenerated after use.",
+        1,
+        168
       );
       config.channels.modLogs = await askChannel(
         interaction,
