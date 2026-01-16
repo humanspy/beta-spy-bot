@@ -10,6 +10,7 @@ import {
   GatewayIntentBits,
   EmbedBuilder,
   Events,
+  Partials,
 } from "discord.js";
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
@@ -60,6 +61,7 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.DirectMessages, // REQUIRED for ModMail
   ],
+  partials: [Partials.Channel, Partials.Message, Partials.User],
 });
 
 /* ===================== MODMAIL INIT ===================== */

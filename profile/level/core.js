@@ -54,7 +54,7 @@ export async function handleLevelRoleComponents(interaction) {
 
     state.interval = intervalInput;
     state.step = "roles";
-    state.currentLevel = 1;
+    state.currentLevel = intervalInput;
 
     return askForRole(interaction);
   }

@@ -11,7 +11,7 @@ export default async function staffwarn(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!(await hasPermission(interaction.member, "staffwarn"))) {
+    if (!(await hasPermission(interaction.member, "warnstaff"))) {
       return interaction.editReply("❌ No permission.");
     }
 

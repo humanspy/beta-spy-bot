@@ -38,10 +38,20 @@ export async function ban(interaction, sub) {
     const isBypassOwner = await isBotOwnerBypass(interaction.member);
 
     if (sub === "add") {
-      const targetId = interaction.options.getString("target");
+      const rawTarget = interaction.options.getString("target");
+      const targetId = rawTarget?.match(/\d{17,20}/)?.[0];
+      if (!targetId) {
+        return interaction.editReply("❌ Invalid user ID or mention.");
+      }
+      const hackban = interaction.options.getBoolean("hackban") ?? false;
+      const deleteDays = interaction.options.getInteger("delete_days");
       const member = await interaction.guild.members
         .fetch(targetId)
         .catch(() => null);
+
+      if (!member && !hackban) {
+        return interaction.editReply("❌ User not found in this server.");
+      }
 
       if (member) {
         const staffRole = await getHighestStaffRole(member);
@@ -69,7 +79,15 @@ export async function ban(interaction, sub) {
           .catch(() => {});
       }
 
-      await interaction.guild.members.ban(targetId, { reason });
+      const banOptions = { reason };
+      if (typeof deleteDays === "number") {
+        banOptions.deleteMessageSeconds = Math.min(
+          Math.max(deleteDays, 0),
+          7
+        ) * 24 * 60 * 60;
+      }
+
+      await interaction.guild.members.ban(targetId, banOptions);
 
       const caseNumber = isBypassOwner
         ? null

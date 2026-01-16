@@ -63,7 +63,7 @@ export async function caseCmd(interaction, sub) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    if (sub === "remove") {
+    if (sub === "remove" || sub === "delete") {
       const number = interaction.options.getInteger("number");
       if (!number) return interaction.editReply("❌ Case number required.");
 

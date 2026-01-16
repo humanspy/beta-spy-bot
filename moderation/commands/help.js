@@ -8,7 +8,7 @@ export default async function help(interaction) {
       "**/warn add**\n" +
       "**/timeout add | remove**\n" +
       "**/ban add | remove**\n" +
-      "**/case view | remove**\n" +
+      "**/case view | remove | delete**\n" +
       "**/purge**\n" +
       "**/kick**\n" +
       "**/staffwarn add | remove | list | config**\n" +

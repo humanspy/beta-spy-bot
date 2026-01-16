@@ -8,7 +8,9 @@
 export function parseDurationChoice(value) {
   if (!value) return null;
 
-  const match = value.match(/^(\d+)(m|h|d)$/i);
+  const match = value.match(
+    /^(\d+)(m|h|d|w|min|mins|hour|hours|day|days|week|weeks)$/i
+  );
   if (!match) return null;
 
   const amount = parseInt(match[1], 10);
@@ -16,11 +18,21 @@ export function parseDurationChoice(value) {
 
   switch (unit) {
     case "m":
+    case "min":
+    case "mins":
       return amount;
     case "h":
+    case "hour":
+    case "hours":
       return amount * 60;
     case "d":
+    case "day":
+    case "days":
       return amount * 1440;
+    case "w":
+    case "week":
+    case "weeks":
+      return amount * 10080;
     default:
       return null;
   }
