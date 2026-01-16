@@ -253,13 +253,6 @@ export async function deleteCase(guildId, guildName, caseNumber) {
 
   return true;
 }
-    `DELETE FROM \`${tableName}\`
-     WHERE case_number = ?`,
-    [caseNumber]
-  );
-
-  return res.affectedRows > 0;
-}
 
 /* ===================== MOD LOGS ===================== */
 
