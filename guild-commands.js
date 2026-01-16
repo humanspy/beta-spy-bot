@@ -185,6 +185,18 @@ export const guildCommands = [
     .setDescription("Generate a one-time ban override code"),
 
   new SlashCommandBuilder()
+    .setName("regentimer")
+    .setDescription("Set override code regeneration timer (hours)")
+    .addIntegerOption(opt =>
+      opt
+        .setName("hours")
+        .setDescription("Hours before a new code is generated after use")
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(168)
+    ),
+
+  new SlashCommandBuilder()
     .setName("staffwarn")
     .setDescription("Manage staff warnings")
     .addSubcommand(sub =>

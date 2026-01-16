@@ -11,7 +11,9 @@ export async function caseCmd(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!(await hasPermission(interaction.member, "case"))) {
+    const permission =
+      sub === "remove" || sub === "delete" ? "case_delete" : "case";
+    if (!(await hasPermission(interaction.member, permission))) {
       return interaction.editReply("❌ No permission.");
     }
 

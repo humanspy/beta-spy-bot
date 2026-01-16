@@ -27,6 +27,7 @@ async function ensureTable() {
       level_roles_json JSON NULL,
       staffwarn_config_json JSON NULL,
       override_code VARCHAR(64) NULL,
+      override_regen_hours INT UNSIGNED NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP
     )`
@@ -51,6 +52,12 @@ async function ensureTable() {
        ADD COLUMN override_code VARCHAR(64) NULL`
     );
   }
+  if (!columnNames.has("override_regen_hours")) {
+    await pool.query(
+      `ALTER TABLE \`${tableName}\`
+       ADD COLUMN override_regen_hours INT UNSIGNED NULL`
+    );
+  }
   return tableName;
 }
 
@@ -62,7 +69,7 @@ export async function getStaffConfig(guild) {
   const tableName = await ensureTable();
   const [rows] = await pool.query(
     `SELECT staff_roles_json, channels_json, level_roles_json,
-            staffwarn_config_json, override_code
+            staffwarn_config_json, override_code, override_regen_hours
      FROM \`${tableName}\`
      WHERE guild_id = ?`,
     [guildId]
@@ -98,6 +105,7 @@ export async function getStaffConfig(guild) {
     levelRoles,
     staffWarnConfig,
     overrideCode: row.override_code ?? null,
+    overrideRegenHours: row.override_regen_hours ?? 24,
   };
   staffConfigCache.set(String(guildId), config);
   return config;
@@ -118,14 +126,15 @@ export async function saveStaffConfig(guild, config) {
   await pool.query(
     `INSERT INTO \`${tableName}\`
      (guild_id, staff_roles_json, channels_json, level_roles_json,
-      staffwarn_config_json, override_code)
-     VALUES (?, ?, ?, ?, ?, ?)
+      staffwarn_config_json, override_code, override_regen_hours)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        staff_roles_json = VALUES(staff_roles_json),
        channels_json = VALUES(channels_json),
        level_roles_json = VALUES(level_roles_json),
        staffwarn_config_json = VALUES(staffwarn_config_json),
-       override_code = VALUES(override_code)`,
+       override_code = VALUES(override_code),
+       override_regen_hours = VALUES(override_regen_hours)`,
     [
       guildId,
       staffRolesJson,
@@ -133,6 +142,7 @@ export async function saveStaffConfig(guild, config) {
       levelRolesJson,
       staffWarnConfigJson,
       config.overrideCode ?? null,
+      config.overrideRegenHours ?? 24,
     ]
   );
   staffConfigCache.set(String(guildId), {
@@ -153,7 +163,7 @@ export async function initStaffConfigCache() {
   const tableName = await ensureTable();
   const [rows] = await pool.query(
     `SELECT guild_id, staff_roles_json, channels_json, level_roles_json,
-            staffwarn_config_json, override_code
+            staffwarn_config_json, override_code, override_regen_hours
      FROM \`${tableName}\``
   );
 
@@ -185,6 +195,7 @@ export async function initStaffConfigCache() {
       levelRoles,
       staffWarnConfig,
       overrideCode: row.override_code ?? null,
+      overrideRegenHours: row.override_regen_hours ?? 24,
     });
   });
 
