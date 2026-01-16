@@ -31,13 +31,12 @@ function isStaffThreadMessage(message, forumChannelId) {
   );
 }
 
-async function getSharedGuilds(client, userId) {
+async function getEnabledGuilds(client) {
   const results = [];
   for (const guild of client.guilds.cache.values()) {
     const config = await loadModmailConfig(guild.id);
     if (!config?.enabled) continue;
-    const member = await guild.members.fetch(userId).catch(() => null);
-    if (member) results.push(guild);
+    results.push(guild);
   }
   return results;
 }
@@ -167,8 +166,8 @@ export async function handleModmailDM(message, client) {
   }
 
   if (!state) {
-    const sharedGuilds = await getSharedGuilds(client, userId);
-    const options = sharedGuilds
+    const enabledGuilds = await getEnabledGuilds(client);
+    const options = enabledGuilds
       .slice(0, 24)
       .map(guild => ({
         label: guild.name,
