@@ -1,14 +1,20 @@
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   EmbedBuilder,
+  PermissionFlagsBits,
   StringSelectMenuBuilder,
 } from "discord.js";
 
 import { loadModmailConfig } from "./config.js";
 import {
+  closeTicket,
   createTicket,
   getAppealCount,
   getTicketByThreadId,
+  getOpenTicketByUser,
+  getOpenTicketByUserGuild,
   incrementAppealCount,
   updateTicketActivity,
 } from "./ticketManager.js";
@@ -79,11 +85,36 @@ export async function handleModmailDM(message, client) {
   const userId = message.author.id;
   const state = pending.get(userId);
 
+  if (!state) {
+    const existingTicket = await getOpenTicketByUser(userId);
+    if (existingTicket) {
+      const closeRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`modmail_close:${existingTicket.threadId}`)
+          .setLabel("Close Ticket")
+          .setStyle(ButtonStyle.Danger)
+      );
+      return message.reply({
+        content:
+          "ℹ️ You already have an open ticket. Close it to start a new one.",
+        components: [closeRow],
+      });
+    }
+  }
+
   if (state?.step === "topic") {
     const config = await loadModmailConfig(state.guildId);
     if (!config) {
       pending.delete(userId);
       return message.reply("❌ Config error.");
+    }
+
+    const openTicket = await getOpenTicketByUserGuild(userId, state.guildId);
+    if (openTicket) {
+      pending.delete(userId);
+      return message.reply(
+        "ℹ️ You already have an open ticket for this server. Close it first."
+      );
     }
 
     if (state.type === "Ban Appeal") {
@@ -105,7 +136,7 @@ export async function handleModmailDM(message, client) {
     }
 
     try {
-      await createTicket({
+      const ticket = await createTicket({
         guildId: state.guildId,
         userId,
         type: state.type,
@@ -117,8 +148,18 @@ export async function handleModmailDM(message, client) {
         await incrementAppealCount(state.guildId, userId);
       }
 
+      const closeRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`modmail_close:${ticket.threadId}`)
+          .setLabel("Close Ticket")
+          .setStyle(ButtonStyle.Danger)
+      );
+
       pending.delete(userId);
-      return message.reply("✅ Ticket created.");
+      return message.reply({
+        content: "✅ Ticket created. You can close it below when resolved.",
+        components: [closeRow],
+      });
     } catch {
       pending.delete(userId);
       return message.reply("❌ Failed to create ticket.");
@@ -149,11 +190,59 @@ export async function handleModmailDM(message, client) {
 
 export async function handleModmailInteraction(interaction, client) {
   if (!interaction.isStringSelectMenu() && !interaction.isButton()) return false;
-  if (interaction.guild) return false;
 
   const userId = interaction.user.id;
 
   if (interaction.isButton()) {
+    if (interaction.customId.startsWith("modmail_close:")) {
+      const threadId = interaction.customId.split(":")[1];
+      const ticket = await getTicketByThreadId(threadId);
+      if (!ticket || ticket.status !== "open") {
+        await interaction.reply("❌ Ticket not found or already closed.");
+        return true;
+      }
+
+      if (interaction.guild) {
+        const member = interaction.member;
+        if (
+          !member?.permissions.has(PermissionFlagsBits.ManageThreads) &&
+          !member?.permissions.has(PermissionFlagsBits.Administrator)
+        ) {
+          await interaction.reply("❌ Missing permission to close tickets.");
+          return true;
+        }
+      } else if (ticket.userId !== userId) {
+        await interaction.reply("❌ You can only close your own ticket.");
+        return true;
+      }
+
+      const guild = client.guilds.cache.get(ticket.guildId);
+      const thread = await client.channels
+        .fetch(ticket.threadId)
+        .catch(() => null);
+
+      await closeTicket(ticket.threadId, userId);
+
+      if (interaction.guild) {
+        const user = await client.users.fetch(ticket.userId).catch(() => null);
+        if (user) {
+          await user
+            .send("✅ Your Modmail ticket has been closed by staff.")
+            .catch(() => {});
+        }
+        if (thread) {
+          await thread.delete("Modmail ticket closed by staff").catch(() => {});
+        }
+        await interaction.reply("✅ Ticket closed and post deleted.");
+      } else {
+        if (thread) {
+          await thread.delete("Modmail ticket closed by user").catch(() => {});
+        }
+        await interaction.reply("✅ Ticket closed and post deleted.");
+      }
+      return true;
+    }
+
     if (interaction.customId !== "modmail_ban_appeal") return false;
 
     const appealGuilds = await getAppealEligibleGuilds(client, userId);

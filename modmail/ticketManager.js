@@ -1,5 +1,11 @@
 import crypto from "crypto";
-import { ChannelType, EmbedBuilder } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  EmbedBuilder,
+} from "discord.js";
 import { pool } from "../database/mysql.js";
 import { loadModmailConfig } from "./config.js";
 
@@ -18,11 +24,37 @@ async function ensureTicketsTable() {
       created_at BIGINT NOT NULL,
       last_message_at BIGINT NOT NULL,
       last_message_id VARCHAR(32) NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'open',
+      closed_at BIGINT NULL,
+      closed_by VARCHAR(32) NULL,
       KEY idx_user_id (user_id),
       KEY idx_thread_id (thread_id),
       KEY idx_last_message_at (last_message_at)
     )`
   );
+
+  const [columns] = await pool.query(
+    `SHOW COLUMNS FROM \`${TICKETS_TABLE}\``
+  );
+  const columnNames = new Set(columns.map(col => col.Field));
+  if (!columnNames.has("status")) {
+    await pool.query(
+      `ALTER TABLE \`${TICKETS_TABLE}\`
+       ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'open'`
+    );
+  }
+  if (!columnNames.has("closed_at")) {
+    await pool.query(
+      `ALTER TABLE \`${TICKETS_TABLE}\`
+       ADD COLUMN closed_at BIGINT NULL`
+    );
+  }
+  if (!columnNames.has("closed_by")) {
+    await pool.query(
+      `ALTER TABLE \`${TICKETS_TABLE}\`
+       ADD COLUMN closed_by VARCHAR(32) NULL`
+    );
+  }
 }
 
 async function ensureAppealsTable() {
@@ -61,9 +93,20 @@ export async function createTicket({ guildId, userId, type, topic, client }) {
   ).filter(Boolean);
 
   const thread = await forum.threads.create({
-    name: `${type} -- ${userId}`,
+    name: `${type} — <@${userId}>`,
     message: { embeds: [embed] },
     appliedTags,
+  });
+
+  const closeRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`modmail_close:${thread.id}`)
+      .setLabel("Close Ticket")
+      .setStyle(ButtonStyle.Danger)
+  );
+  await thread.send({
+    content: "Use the button below to close this ticket when resolved.",
+    components: [closeRow],
   });
 
   await ensureTicketsTable();
@@ -71,9 +114,9 @@ export async function createTicket({ guildId, userId, type, topic, client }) {
   const now = Date.now();
   await pool.query(
     `INSERT INTO \`${TICKETS_TABLE}\`
-     (id, guild_id, user_id, type, topic, thread_id, created_at, last_message_at, last_message_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [ticketId, guildId, userId, type, topic, thread.id, now, now, null]
+     (id, guild_id, user_id, type, topic, thread_id, created_at, last_message_at, last_message_id, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [ticketId, guildId, userId, type, topic, thread.id, now, now, null, "open"]
   );
 
   return {
@@ -131,6 +174,9 @@ export async function getTicketByThreadId(threadId) {
     createdAt: row.created_at,
     lastMessageAt: row.last_message_at,
     lastMessageId: row.last_message_id,
+    status: row.status,
+    closedAt: row.closed_at,
+    closedBy: row.closed_by,
   };
 }
 
@@ -153,13 +199,77 @@ export async function removeTicketByThreadId(threadId) {
   );
 }
 
+export async function getOpenTicketByUser(userId) {
+  await ensureTicketsTable();
+  const [[row]] = await pool.query(
+    `SELECT *
+     FROM \`${TICKETS_TABLE}\`
+     WHERE user_id = ? AND status = 'open'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId]
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    guildId: row.guild_id,
+    userId: row.user_id,
+    type: row.type,
+    topic: row.topic,
+    threadId: row.thread_id,
+    createdAt: row.created_at,
+    lastMessageAt: row.last_message_at,
+    lastMessageId: row.last_message_id,
+    status: row.status,
+    closedAt: row.closed_at,
+    closedBy: row.closed_by,
+  };
+}
+
+export async function getOpenTicketByUserGuild(userId, guildId) {
+  await ensureTicketsTable();
+  const [[row]] = await pool.query(
+    `SELECT *
+     FROM \`${TICKETS_TABLE}\`
+     WHERE user_id = ? AND guild_id = ? AND status = 'open'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId, guildId]
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    guildId: row.guild_id,
+    userId: row.user_id,
+    type: row.type,
+    topic: row.topic,
+    threadId: row.thread_id,
+    createdAt: row.created_at,
+    lastMessageAt: row.last_message_at,
+    lastMessageId: row.last_message_id,
+    status: row.status,
+    closedAt: row.closed_at,
+    closedBy: row.closed_by,
+  };
+}
+
+export async function closeTicket(threadId, closedBy) {
+  await ensureTicketsTable();
+  await pool.query(
+    `UPDATE \`${TICKETS_TABLE}\`
+     SET status = 'closed', closed_at = ?, closed_by = ?
+     WHERE thread_id = ?`,
+    [Date.now(), closedBy ?? null, threadId]
+  );
+}
+
 export async function sweepInactiveTickets(client, cutoffMs) {
   await ensureTicketsTable();
   const threshold = Date.now() - cutoffMs;
   const [rows] = await pool.query(
     `SELECT thread_id
      FROM \`${TICKETS_TABLE}\`
-     WHERE last_message_at <= ?`,
+     WHERE last_message_at <= ? AND status = 'open'`,
     [threshold]
   );
 
