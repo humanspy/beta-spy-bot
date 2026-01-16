@@ -1,8 +1,10 @@
 import {
+  getHighestStaffRole,
   hasPermission,
   createCaseAction,
   createRevertAction,
   dmAffectedUser,
+  isBotOwner,
   isBotOwnerBypass,
   logModerationAction,
 } from "../core.js";
@@ -28,6 +30,12 @@ export async function timeout(interaction, sub) {
       const durationMs = parseDuration(durationRaw);
       if (!durationMs) {
         return interaction.editReply("❌ Invalid duration.");
+      }
+      const staffRole = await getHighestStaffRole(member);
+      if (staffRole && !isBotOwner(interaction.user)) {
+        return interaction.editReply(
+          "❌ Staff are immune to moderation unless a bot owner issues the command."
+        );
       }
 
       await member.timeout(durationMs, reason);

@@ -1,11 +1,13 @@
 import {
+  getHighestStaffRole,
   hasPermission,
   createCaseAction,
   createRevertAction,
-  dmAffectedUser,
+  isBotOwner,
   isBotOwnerBypass,
   logModerationAction,
 } from "../core.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
 
 export async function ban(interaction, sub) {
@@ -42,14 +44,29 @@ export async function ban(interaction, sub) {
         .catch(() => null);
 
       if (member) {
-        await dmAffectedUser({
-          actor: interaction.user,
-          actorMember: interaction.member,
-          commandName: "ban",
-          targetUser: member.user,
-          guildName: interaction.guild.name,
-          message: `You have been banned.\n\nReason: ${reason}`,
-        });
+        const staffRole = await getHighestStaffRole(member);
+        if (staffRole && !isBotOwner(interaction.user)) {
+          return interaction.editReply(
+            "❌ Staff are immune to moderation unless a bot owner issues the command."
+          );
+        }
+      }
+
+      if (member) {
+        const dmEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("🔨 You have been banned")
+          .setDescription(`Reason: ${reason}`)
+          .addFields({ name: "Server", value: interaction.guild.name })
+          .setTimestamp();
+        const appealButton = new ButtonBuilder()
+          .setCustomId("modmail_ban_appeal")
+          .setLabel("Ban Appeal")
+          .setStyle(ButtonStyle.Primary);
+        const row = new ActionRowBuilder().addComponents(appealButton);
+        await member.user
+          .send({ embeds: [dmEmbed], components: [row] })
+          .catch(() => {});
       }
 
       await interaction.guild.members.ban(targetId, { reason });

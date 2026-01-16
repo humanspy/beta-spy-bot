@@ -35,13 +35,6 @@ export const guildCommands = [
         .addBooleanOption(o =>
           o.setName("silent").setDescription("Do not DM the user")
         )
-    )
-    .addSubcommand(sub =>
-      sub.setName("remove")
-        .setDescription("Clear warnings for a user")
-        .addUserOption(o =>
-          o.setName("user").setDescription("User").setRequired(true)
-        )
     ),
 
   new SlashCommandBuilder()

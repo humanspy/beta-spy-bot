@@ -1,5 +1,5 @@
 import { EmbedBuilder } from "discord.js";
-import { hasPermission } from "../core.js";
+import { getHighestStaffRole, hasPermission, isBotOwner } from "../core.js";
 import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
 import {
   addStaffWarn,
@@ -29,6 +29,12 @@ export default async function staffwarn(interaction, sub) {
 
       if (!staffMember) {
         return interaction.editReply("❌ Staff member not found.");
+      }
+      const staffRole = await getHighestStaffRole(staffMember);
+      if (staffRole && !isBotOwner(interaction.user)) {
+        return interaction.editReply(
+          "❌ Staff are immune to moderation unless a bot owner issues the command."
+        );
       }
 
       const activeWarns = await getActiveStaffWarns(
@@ -68,6 +74,26 @@ export default async function staffwarn(interaction, sub) {
           { name: "Warn ID", value: `#${result.warnId}` }
         )
         .setTimestamp();
+
+      try {
+        await staffMember.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xf1c40f)
+              .setTitle("⚠️ Staff Warning")
+              .setDescription(
+                `You have received a staff warning in **${interaction.guild.name}**.`
+              )
+              .addFields(
+                { name: "Reason", value: reason },
+                { name: "Warn ID", value: `#${result.warnId}` }
+              )
+              .setTimestamp(),
+          ],
+        });
+      } catch {
+        // user DMs closed
+      }
 
       const channelId = config.channels?.staffWarnings;
       if (channelId) {
