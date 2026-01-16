@@ -1,5 +1,6 @@
 import { pool } from "../database/mysql.js";
 import { EmbedBuilder } from "discord.js";
+import crypto from "crypto";
 import { getStaffConfig } from "./staffConfig.js";
 
 /* ===================== BOT OWNERS ===================== */
@@ -8,6 +9,8 @@ export const botOwners = {
   [process.env.DISCORD_BOT_OWNER_1]: true,
   [process.env.DISCORD_BOT_OWNER_2]: true,
 };
+
+const banOverrideCodes = new Map();
 
 function getCaseTableName(guildId) {
   const safeId = String(guildId);
@@ -323,4 +326,16 @@ export async function dmAffectedUser({
   } catch {
     // user DMs closed
   }
+}
+
+/* ===================== BAN OVERRIDE CODES ===================== */
+
+export async function generateBanOverrideCode(moderatorTag, moderatorId) {
+  const code = crypto.randomBytes(4).toString("hex").toUpperCase();
+  banOverrideCodes.set(code, {
+    moderatorTag,
+    moderatorId,
+    createdAt: Date.now(),
+  });
+  return code;
 }
