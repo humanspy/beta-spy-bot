@@ -8,7 +8,6 @@ async function ensureStaffWarnTable(guild) {
   await pool.query(
     `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
       warn_id INT UNSIGNED NOT NULL PRIMARY KEY,
-      warn_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       staff_id VARCHAR(32) NOT NULL,
       staff_tag VARCHAR(100) NULL,
       moderator_id VARCHAR(32) NOT NULL,
@@ -57,9 +56,12 @@ export async function getActiveStaffWarns(guild, staffId) {
 export async function addStaffWarn(guild, warnData) {
   const tableName = await ensureStaffWarnTable(guild);
   const [[row]] = await pool.query(
-    `SELECT MAX(warn_id) AS max_warn_id FROM \`${tableName}\``
+    `SELECT warn_id
+     FROM \`${tableName}\`
+     ORDER BY warn_id DESC
+     LIMIT 1`
   );
-  const nextWarnId = (row?.max_warn_id ?? 0) + 1;
+  const nextWarnId = (row?.warn_id ?? 0) + 1;
   const createdAt = Date.now();
   const expiresAt = createdAt + ONE_YEAR_MS;
   await pool.query(
@@ -68,13 +70,6 @@ export async function addStaffWarn(guild, warnData) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       nextWarnId,
-  const createdAt = Date.now();
-  const expiresAt = createdAt + ONE_YEAR_MS;
-  const [result] = await pool.query(
-    `INSERT INTO \`${tableName}\`
-     (staff_id, staff_tag, moderator_id, moderator_tag, reason, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
       warnData.staffId,
       warnData.staffTag,
       warnData.moderatorId,
@@ -86,7 +81,6 @@ export async function addStaffWarn(guild, warnData) {
   );
   return {
     warnId: nextWarnId,
-    warnId: result.insertId,
     createdAt,
     expiresAt,
   };
@@ -109,5 +103,4 @@ export async function removeStaffWarn(guild, warnId) {
   );
 
   return true;
-  return result.affectedRows > 0;
 }
