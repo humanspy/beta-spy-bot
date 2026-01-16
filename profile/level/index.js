@@ -19,7 +19,10 @@ export async function handleLeveling(message) {
   }
 
   // Always announce the level-up in the same channel
-  await message.channel.send(
-    `🎉 **${message.author.tag}** reached **Level ${result.level}**!`
-  ).catch(() => {});
+  await message.channel
+    .send({
+      content: `🎉 <@${message.author.id}> reached **Level ${result.level}**!`,
+      allowedMentions: { users: [message.author.id] },
+    })
+    .catch(() => {});
 }
