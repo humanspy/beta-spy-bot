@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node index.js",
     "test": "node index.js",
+    "check-env": "node scripts/check-env.js",
     "deploy": "node deploy-commands.js"
   },
   "dependencies": {
