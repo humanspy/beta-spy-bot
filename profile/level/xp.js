@@ -1,8 +1,8 @@
 import { getLevelRoleConfig } from "./levelroles.js";
-import { loadUserXP, saveUserXP } from "./storage.js";
+import { getUserData, setUserData } from "./storage.js";
 
 export function addXP(guildId, userId) {
-  const data = loadUserXP(guildId, userId);
+  const data = getUserData(guildId, userId);
 
   data.xp += 10;
 
@@ -15,7 +15,7 @@ export function addXP(guildId, userId) {
     leveledUp = true;
   }
 
-  saveUserXP(guildId, userId, data);
+  setUserData(guildId, userId, data);
 
   return {
     leveledUp,
