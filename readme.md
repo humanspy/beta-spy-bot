@@ -74,7 +74,7 @@ import { getStaffConfig } from "./moderation/staffConfig.js";
 const config = await getStaffConfig(newMember.guild);
 await syncMemberStaffRoleAssignments(newMember, config.staffRoles);
 // This will insert or delete rows like:
-// { guild_id: "123", staff_role_id: "999", user_id: "555", role_level: 0, updated_at: "..." }
+// { guild_id: "123", staff_role_id: "999", user_id: "555", role_level: 0, role_name: "Moderator", updated_at: "..." }
 ```
 
 **Example usage (querying sorted by `guild_id`):**
@@ -85,9 +85,9 @@ import { getStaffRoleAssignmentsSorted } from "./moderation/staffRoleAssignments
 const assignments = await getStaffRoleAssignmentsSorted();
 console.log(assignments.slice(0, 3));
 // [
-//   { guild_id: "123", staff_role_id: "999", user_id: "555", role_level: 0, updated_at: "..." },
-//   { guild_id: "123", staff_role_id: "999", user_id: "777", role_level: 0, updated_at: "..." },
-//   { guild_id: "456", staff_role_id: "888", user_id: "111", role_level: 3, updated_at: "..." }
+//   { guild_id: "123", staff_role_id: "999", user_id: "555", role_level: 0, role_name: "Moderator", updated_at: "..." },
+//   { guild_id: "123", staff_role_id: "999", user_id: "777", role_level: 0, role_name: "Moderator", updated_at: "..." },
+//   { guild_id: "456", staff_role_id: "888", user_id: "111", role_level: 3, role_name: "Admin", updated_at: "..." }
 // ]
 ```
 

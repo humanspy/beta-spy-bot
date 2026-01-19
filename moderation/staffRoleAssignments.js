@@ -6,6 +6,7 @@ function normalizeStaffRoleEntries(staffRoles) {
   return (staffRoles ?? [])
     .map(role => ({
       roleId: role.roleId ?? role,
+      roleName: role.roleName ?? role.name ?? null,
       level: role.level ?? null,
     }))
     .filter(role => role.roleId);
@@ -18,12 +19,14 @@ async function ensureTable() {
       staff_role_id VARCHAR(32) NOT NULL,
       user_id VARCHAR(32) NOT NULL,
       role_level INT NOT NULL DEFAULT 0,
+      role_name VARCHAR(100) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (guild_id, staff_role_id, user_id),
       KEY idx_guild_id (guild_id),
       KEY idx_role_id (staff_role_id),
       KEY idx_role_level (role_level),
+      KEY idx_role_name (role_name),
       KEY idx_user_id (user_id)
     )`
   );
@@ -33,6 +36,12 @@ async function ensureTable() {
     await pool.query(
       `ALTER TABLE \`${TABLE_NAME}\`
        ADD COLUMN role_level INT NOT NULL DEFAULT 0`
+    );
+  }
+  if (!columnNames.has("role_name")) {
+    await pool.query(
+      `ALTER TABLE \`${TABLE_NAME}\`
+       ADD COLUMN role_name VARCHAR(100) NULL`
     );
   }
   return TABLE_NAME;
@@ -47,16 +56,19 @@ export async function syncMemberStaffRoleAssignments(member, staffRoles) {
     return;
   }
 
-  for (const { roleId, level } of staffRoleEntries) {
+  for (const { roleId, roleName, level } of staffRoleEntries) {
     if (member.roles.cache.has(roleId)) {
+      const resolvedRoleName =
+        roleName ?? member.guild.roles.cache.get(roleId)?.name ?? null;
       await pool.query(
         `INSERT INTO \`${TABLE_NAME}\`
-         (guild_id, staff_role_id, user_id, role_level)
-         VALUES (?, ?, ?, ?)
+         (guild_id, staff_role_id, user_id, role_level, role_name)
+         VALUES (?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            role_level = VALUES(role_level),
+           role_name = VALUES(role_name),
            updated_at = CURRENT_TIMESTAMP`,
-        [member.guild.id, roleId, member.id, level ?? 0]
+        [member.guild.id, roleId, member.id, level ?? 0, resolvedRoleName]
       );
     } else {
       await pool.query(
@@ -92,9 +104,11 @@ export async function syncGuildStaffRoleAssignments(guild, staffRoles) {
   const rows = [];
 
   for (const member of members.values()) {
-    for (const { roleId, level } of staffRoleEntries) {
+    for (const { roleId, roleName, level } of staffRoleEntries) {
+      const resolvedRoleName =
+        roleName ?? guild.roles.cache.get(roleId)?.name ?? null;
       if (member.roles.cache.has(roleId)) {
-        rows.push([guild.id, roleId, member.id, level ?? 0]);
+        rows.push([guild.id, roleId, member.id, level ?? 0, resolvedRoleName]);
       }
     }
   }
@@ -105,7 +119,7 @@ export async function syncGuildStaffRoleAssignments(guild, staffRoles) {
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     await pool.query(
-      `INSERT INTO \`${TABLE_NAME}\` (guild_id, staff_role_id, user_id, role_level)
+      `INSERT INTO \`${TABLE_NAME}\` (guild_id, staff_role_id, user_id, role_level, role_name)
        VALUES ?`,
       [chunk]
     );
@@ -125,9 +139,11 @@ export async function syncAllStaffRoleAssignments(guildConfigs) {
     if (!staffRoleEntries.length) continue;
     const members = await guild.members.fetch();
     for (const member of members.values()) {
-      for (const { roleId, level } of staffRoleEntries) {
+      for (const { roleId, roleName, level } of staffRoleEntries) {
+        const resolvedRoleName =
+          roleName ?? guild.roles.cache.get(roleId)?.name ?? null;
         if (member.roles.cache.has(roleId)) {
-          rows.push([guild.id, roleId, member.id, level ?? 0]);
+          rows.push([guild.id, roleId, member.id, level ?? 0, resolvedRoleName]);
         }
       }
     }
@@ -139,7 +155,7 @@ export async function syncAllStaffRoleAssignments(guildConfigs) {
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     await pool.query(
-      `INSERT INTO \`${TABLE_NAME}\` (guild_id, staff_role_id, user_id, role_level)
+      `INSERT INTO \`${TABLE_NAME}\` (guild_id, staff_role_id, user_id, role_level, role_name)
        VALUES ?`,
       [chunk]
     );
@@ -149,9 +165,9 @@ export async function syncAllStaffRoleAssignments(guildConfigs) {
 export async function getStaffRoleAssignmentsSorted() {
   await ensureTable();
   const [rows] = await pool.query(
-    `SELECT guild_id, staff_role_id, user_id, role_level, updated_at
+    `SELECT guild_id, staff_role_id, user_id, role_level, role_name, updated_at
      FROM \`${TABLE_NAME}\`
-     ORDER BY guild_id ASC, staff_role_id ASC, role_level ASC, user_id ASC`
+     ORDER BY guild_id ASC, staff_role_id ASC, role_level ASC, role_name ASC, user_id ASC`
   );
   return rows;
 }
