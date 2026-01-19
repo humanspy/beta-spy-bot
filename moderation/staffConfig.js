@@ -1,4 +1,5 @@
 import { pool } from "../database/mysql.js";
+import { syncGuildStaffRoleAssignments } from "./staffRoleAssignments.js";
 
 const staffConfigCache = new Map();
 let cacheInitialized = false;
@@ -149,6 +150,20 @@ export async function saveStaffConfig(guild, config) {
     ...config,
     guildId,
   });
+
+  if (typeof guild === "object" && guild?.members) {
+    try {
+      await syncGuildStaffRoleAssignments(guild, config.staffRoles);
+    } catch (err) {
+      console.error("❌ Failed to sync staff role assignments:", err);
+    }
+  }
+}
+
+export function getAllStaffConfigsSorted() {
+  return Array.from(staffConfigCache.values()).sort((a, b) =>
+    String(a.guildId).localeCompare(String(b.guildId))
+  );
 }
 
 export async function deleteStaffConfig(guild) {
