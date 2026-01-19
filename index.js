@@ -15,7 +15,17 @@ import {
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
 import { ensureDataPath } from "./utils/storage.js";
-import { getStaffConfig, initStaffConfigCache } from "./moderation/staffConfig.js";
+import {
+  getAllStaffConfigsSorted,
+  getStaffConfig,
+  initStaffConfigCache,
+} from "./moderation/staffConfig.js";
+import {
+  removeMemberStaffRoleAssignments,
+  syncAllStaffRoleAssignments,
+  syncGuildStaffRoleAssignments,
+  syncMemberStaffRoleAssignments,
+} from "./moderation/staffRoleAssignments.js";
 
 import { handleCounting } from "./counting/index.js";
 import { handleLeveling } from "./profile/level/index.js";
@@ -32,6 +42,7 @@ import { testDatabaseConnection } from "./database/mysql.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
+const staffConfigs = getAllStaffConfigsSorted();
 
 
 /* ===================== PRE-FLIGHT ===================== */
@@ -86,6 +97,21 @@ client.once(Events.ClientReady, async () => {
   } catch {
     // case sync must never crash startup
   }
+
+  const guildConfigs = [];
+  for (const config of staffConfigs) {
+    const guild =
+      client.guilds.cache.get(config.guildId) ??
+      (await client.guilds.fetch(config.guildId).catch(() => null));
+    if (!guild) continue;
+    guildConfigs.push({ guild, staffRoles: config.staffRoles });
+  }
+
+  try {
+    await syncAllStaffRoleAssignments(guildConfigs);
+  } catch (err) {
+    console.error("❌ Failed to sync global staff role assignments:", err);
+  }
 });
 
 /* ===================== INTERACTIONS ===================== */
@@ -134,6 +160,25 @@ client.on("messageCreate", async message => {
 
   // ⭐ Leveling system (always active)
   await handleLeveling(message);
+});
+
+/* ===================== STAFF ROLE TRACKING ===================== */
+
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  const config = await getStaffConfig(newMember.guild);
+  if (!config?.staffRoles?.length) return;
+  const oldRoles = oldMember.roles.cache;
+  const newRoles = newMember.roles.cache;
+  const staffRoleIds = config.staffRoles.map(role => role.roleId);
+  const changed = staffRoleIds.some(roleId => {
+    return oldRoles.has(roleId) !== newRoles.has(roleId);
+  });
+  if (!changed) return;
+  await syncMemberStaffRoleAssignments(newMember, config.staffRoles);
+});
+
+client.on(Events.GuildMemberRemove, async member => {
+  await removeMemberStaffRoleAssignments(member.guild.id, member.id);
 });
 
 /* ===================== LOGIN ===================== */

@@ -15,6 +15,7 @@ This bot is designed with **clean architecture**, **central routing**, and **ser
 * Override ban codes
 * Permission-based staff hierarchy
 * Integrated moderation workflows
+* Staff role assignment tracking persisted in MySQL
 
 ### 🎵 Music
 
@@ -56,6 +57,39 @@ This bot is designed with **clean architecture**, **central routing**, and **ser
 * Closed tickets are automatically locked
 * Anonymous staff replies (optional)
 * Appeal usage tracking per user
+
+## 🧾 Staff Role Assignment Tracking
+
+The bot writes a global table that records which users hold each staff role per guild. This
+table is fully refreshed on startup, updated when staff config is saved, and synced whenever
+member roles change (so the table stays global, not per-guild).
+
+**Example: saving role assignments to the table when a member changes roles**
+
+```js
+import { syncMemberStaffRoleAssignments } from "./moderation/staffRoleAssignments.js";
+import { getStaffConfig } from "./moderation/staffConfig.js";
+
+// Inside a GuildMemberUpdate handler:
+const config = await getStaffConfig(newMember.guild);
+await syncMemberStaffRoleAssignments(newMember, config.staffRoles);
+// This will insert or delete rows like:
+// { guild_id: "123", staff_role_id: "999", user_id: "555", role_level: 0, updated_at: "..." }
+```
+
+**Example usage (querying sorted by `guild_id`):**
+
+```js
+import { getStaffRoleAssignmentsSorted } from "./moderation/staffRoleAssignments.js";
+
+const assignments = await getStaffRoleAssignmentsSorted();
+console.log(assignments.slice(0, 3));
+// [
+//   { guild_id: "123", staff_role_id: "999", user_id: "555", role_level: 0, updated_at: "..." },
+//   { guild_id: "123", staff_role_id: "999", user_id: "777", role_level: 0, updated_at: "..." },
+//   { guild_id: "456", staff_role_id: "888", user_id: "111", role_level: 3, updated_at: "..." }
+// ]
+```
 
 ---
 
