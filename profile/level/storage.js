@@ -1,8 +1,26 @@
 import { pool } from "../../database/mysql.js";
-import { getGuildTableName } from "../../database/tableNames.js";
+import {
+  getGuildTableName,
+  getLegacyGuildTableName,
+} from "../../database/tableNames.js";
+
+async function tableExists(tableName) {
+  const [rows] = await pool.query("SHOW TABLES LIKE ?", [tableName]);
+  return rows.length > 0;
+}
 
 async function ensureXpTable(guild) {
   const tableName = getGuildTableName(guild, "xp");
+  const legacyTableName = getLegacyGuildTableName(guild, "xp");
+  const legacyExists = await tableExists(legacyTableName);
+  const tableExistsNow = await tableExists(tableName);
+  if (legacyExists && !tableExistsNow) {
+    await pool.query(
+      `RENAME TABLE \`${legacyTableName}\` TO \`${tableName}\``
+    );
+    return tableName;
+  }
+
   await pool.query(
     `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
       user_id VARCHAR(32) NOT NULL PRIMARY KEY,
@@ -14,6 +32,12 @@ async function ensureXpTable(guild) {
         ON UPDATE CURRENT_TIMESTAMP
     )`
   );
+  if (legacyExists) {
+    await pool.query(
+      `INSERT IGNORE INTO \`${tableName}\` SELECT * FROM \`${legacyTableName}\``
+    );
+    await pool.query(`DROP TABLE \`${legacyTableName}\``);
+  }
   return tableName;
 }
 

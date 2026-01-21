@@ -1,10 +1,28 @@
 import { pool } from "../database/mysql.js";
-import { getGuildTableName } from "../database/tableNames.js";
+import {
+  getGuildTableName,
+  getLegacyGuildTableName,
+} from "../database/tableNames.js";
 
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
+async function tableExists(tableName) {
+  const [rows] = await pool.query("SHOW TABLES LIKE ?", [tableName]);
+  return rows.length > 0;
+}
+
 async function ensureStaffWarnTable(guild) {
   const tableName = getGuildTableName(guild, "staffwarns");
+  const legacyTableName = getLegacyGuildTableName(guild, "staffwarns");
+  const legacyExists = await tableExists(legacyTableName);
+  const tableExistsNow = await tableExists(tableName);
+  if (legacyExists && !tableExistsNow) {
+    await pool.query(
+      `RENAME TABLE \`${legacyTableName}\` TO \`${tableName}\``
+    );
+    return tableName;
+  }
+
   await pool.query(
     `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
       warn_id INT UNSIGNED NOT NULL PRIMARY KEY,
@@ -19,6 +37,12 @@ async function ensureStaffWarnTable(guild) {
       KEY idx_expires_at (expires_at)
     )`
   );
+  if (legacyExists) {
+    await pool.query(
+      `INSERT IGNORE INTO \`${tableName}\` SELECT * FROM \`${legacyTableName}\``
+    );
+    await pool.query(`DROP TABLE \`${legacyTableName}\``);
+  }
   const [columns] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
   const warnIdColumn = columns.find(col => col.Field === "warn_id");
   if (warnIdColumn?.Extra?.includes("auto_increment")) {
