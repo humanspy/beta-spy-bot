@@ -1,7 +1,10 @@
 import { pool } from "../database/mysql.js";
 import { EmbedBuilder } from "discord.js";
 import crypto from "crypto";
-import { getGuildTableName } from "../database/tableNames.js";
+import {
+  getGuildTableName,
+  getLegacyGuildTableName,
+} from "../database/tableNames.js";
 import { getStaffConfig } from "./staffConfig.js";
 
 /* ===================== BOT OWNERS ===================== */
@@ -23,8 +26,23 @@ function getCaseTableName(guild, guildName) {
   return getGuildTableName(context, "cases");
 }
 
+async function tableExists(tableName) {
+  const [rows] = await pool.query("SHOW TABLES LIKE ?", [tableName]);
+  return rows.length > 0;
+}
+
 export async function ensureCasesTable(guild, guildName) {
   const tableName = getCaseTableName(guild, guildName);
+  const legacyTableName = getLegacyGuildTableName(guild, "cases", guildName);
+  const legacyExists = await tableExists(legacyTableName);
+  const tableExistsNow = await tableExists(tableName);
+  if (legacyExists && !tableExistsNow) {
+    await pool.query(
+      `RENAME TABLE \`${legacyTableName}\` TO \`${tableName}\``
+    );
+    return tableName;
+  }
+
   await pool.query(
     `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
       case_number INT UNSIGNED NOT NULL,
@@ -43,6 +61,13 @@ export async function ensureCasesTable(guild, guildName) {
       KEY idx_created_at (created_at)
     )`
   );
+
+  if (legacyExists) {
+    await pool.query(
+      `INSERT IGNORE INTO \`${tableName}\` SELECT * FROM \`${legacyTableName}\``
+    );
+    await pool.query(`DROP TABLE \`${legacyTableName}\``);
+  }
   return tableName;
 }
 
