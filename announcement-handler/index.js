@@ -102,7 +102,10 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     )
     .catch(() => [null]);
   const storedChannelId = row?.channel_id ?? null;
-  const sourceChannel = await client.channels
+  const sourceGuild = await client.guilds
+    .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
+    .catch(() => null);
+  const sourceChannel = await sourceGuild?.channels
     .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
     .catch(() => null);
   if (
@@ -111,7 +114,8 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     typeof sourceChannel.fetchFollowers !== "function"
   ) {
     console.error(
-      "[Announcements] Source channel is invalid or not a News channel."
+      "[Announcements] Source channel is invalid or not a News channel:",
+      ANNOUNCEMENT_SOURCE_CHANNEL_ID
     );
     await pool.query(
       `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
