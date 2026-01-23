@@ -5,6 +5,7 @@ import {
   REST,
   Routes,
   SlashCommandBuilder,
+  WebhookClient,
 } from "discord.js";
 
 import { pool } from "../database/mysql.js";
@@ -17,6 +18,7 @@ const ANNOUNCEMENT_TARGET_CHANNEL_NAME = "sgi-core-announcements";
 const ANNOUNCEMENT_SYNC_GUILD_ID = "1114470427960557650";
 const ANNOUNCEMENT_SYNC_COMMAND = "announcement-sync";
 const ANNOUNCEMENT_HEALTHCHECK_INTERVAL_MS = 30 * 60 * 1000;
+const announcementWebhookCache = new Map();
 
 const ensureAnnouncementFollowersTable = async () => {
   await pool.query(
@@ -27,16 +29,20 @@ const ensureAnnouncementFollowersTable = async () => {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`
   );
-};
-
-const getAnnouncementSourceChannel = async client => {
-  const channel = await client.channels
-    .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
-    .catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildAnnouncement) {
-    return null;
+  const [columns] = await pool.query(
+    "SHOW COLUMNS FROM `announcement_followers`"
+  );
+  const columnNames = new Set(columns.map(col => col.Field));
+  if (!columnNames.has("is_followed")) {
+    await pool.query(
+      "ALTER TABLE `announcement_followers` ADD COLUMN is_followed BOOLEAN DEFAULT FALSE"
+    );
   }
-  return channel;
+  if (!columnNames.has("channel_id")) {
+    await pool.query(
+      "ALTER TABLE `announcement_followers` ADD COLUMN channel_id BIGINT NULL"
+    );
+  }
 };
 
 const ensureAnnouncementChannel = async (guild, channelId = null) => {
@@ -84,6 +90,35 @@ const ensureAnnouncementChannel = async (guild, channelId = null) => {
   });
 };
 
+const getAnnouncementWebhookClient = async (
+  channel,
+  webhookName,
+  webhookAvatar
+) => {
+  const cached = announcementWebhookCache.get(channel.id);
+  if (cached?.name === webhookName) {
+    return cached.client;
+  }
+
+  const hooks = await channel.fetchWebhooks().catch(() => null);
+  let hook = hooks?.find(existing => existing.name === webhookName) ?? null;
+
+  if (!hook) {
+    hook = await channel
+      .createWebhook({
+        name: webhookName,
+        avatar: webhookAvatar ?? undefined,
+      })
+      .catch(() => null);
+  }
+
+  if (!hook?.url) return null;
+
+  const client = new WebhookClient({ url: hook.url });
+  announcementWebhookCache.set(channel.id, { name: webhookName, client });
+  return client;
+};
+
 const getAnnouncementSyncRoles = config => {
   return (config?.staffRoles ?? [])
     .filter(role => {
@@ -98,18 +133,13 @@ const getAnnouncementSyncRoles = config => {
 const buildAnnouncementSyncCommand = () =>
   new SlashCommandBuilder()
     .setName(ANNOUNCEMENT_SYNC_COMMAND)
-    .setDescription("Sync announcement followers for all guilds");
+    .setDescription("Heal announcement channels for all guilds");
 
 export const verifyAnnouncementFollower = async (client, guild) => {
   if (guild.id === ANNOUNCEMENT_SOURCE_GUILD_ID) {
-    return;
-  }
-  await ensureAnnouncementFollowersTable();
-  const sourceChannel = await getAnnouncementSourceChannel(client);
-  if (!sourceChannel) {
-    console.log(`[Announcements] ${guild.name}: FAIL`);
     return false;
   }
+  await ensureAnnouncementFollowersTable();
   const [[row]] = await pool
     .query(
       "SELECT channel_id FROM announcement_followers WHERE guild_id = ?",
@@ -117,52 +147,93 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     )
     .catch(() => [null]);
   const storedChannelId = row?.channel_id ?? null;
+  let existingChannel = null;
+  if (storedChannelId) {
+    existingChannel = await guild.channels
+      .fetch(storedChannelId)
+      .catch(() => null);
+  }
   const targetChannel = await ensureAnnouncementChannel(
     guild,
-    storedChannelId
+    existingChannel?.id ?? null
   ).catch(() => null);
-  if (!targetChannel) {
-    await pool.query(
-      `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         channel_id = VALUES(channel_id),
-         is_followed = VALUES(is_followed)`,
-      [guild.id, storedChannelId, false]
-    );
-    console.log(`[Announcements] ${guild.name}: FAIL`);
-    return false;
-  }
-
   let followedStatus = false;
-  const followers = await sourceChannel.fetchFollowers().catch(() => null);
-  const alreadyFollowing = followers?.some(follower => {
-    return follower.channelId === targetChannel.id;
-  });
-  if (!alreadyFollowing) {
-    try {
-      await sourceChannel.addFollower(targetChannel.id);
-      followedStatus = true;
-    } catch {
-      followedStatus = false;
-    }
-  } else {
-    followedStatus = true;
+  if (targetChannel) {
+    const sourceGuild = await client.guilds
+      .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
+      .catch(() => null);
+    const webhookName = sourceGuild?.name ?? "Announcements";
+    const webhookAvatar = sourceGuild?.iconURL?.({ extension: "png" }) ?? null;
+    const webhook = await getAnnouncementWebhookClient(
+      targetChannel,
+      webhookName,
+      webhookAvatar
+    );
+    followedStatus = Boolean(webhook);
   }
-
   await pool.query(
     `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
      VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE
        channel_id = VALUES(channel_id),
        is_followed = VALUES(is_followed)`,
-    [guild.id, targetChannel.id, followedStatus]
+    [guild.id, targetChannel?.id ?? storedChannelId, followedStatus]
   );
 
   console.log(
     `[Announcements] ${guild.name}: ${followedStatus ? "SUCCESS" : "FAIL"}`
   );
   return followedStatus;
+};
+
+export const handleAnnouncementMessageCreate = async message => {
+  if (!message?.guildId) return false;
+  if (message.channelId !== ANNOUNCEMENT_SOURCE_CHANNEL_ID) return false;
+  if (message.author?.bot) return false;
+
+  await ensureAnnouncementFollowersTable();
+  const sourceGuild = await message.client.guilds
+    .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
+    .catch(() => null);
+  const webhookName = sourceGuild?.name ?? "Announcements";
+  const webhookAvatar = sourceGuild?.iconURL?.({ extension: "png" }) ?? null;
+  const [rows] = await pool
+    .query(
+      "SELECT channel_id FROM announcement_followers WHERE channel_id IS NOT NULL AND is_followed = TRUE"
+    )
+    .catch(() => [null]);
+  if (!rows?.length) return false;
+
+  const files = message.attachments.map(attachment => attachment.url);
+  const embeds = message.embeds?.length ? message.embeds : undefined;
+  const content = message.content || undefined;
+  if (!content && !embeds && files.length === 0) return false;
+
+  for (const row of rows) {
+    const channelId = row?.channel_id;
+    if (!channelId || channelId === ANNOUNCEMENT_SOURCE_CHANNEL_ID) continue;
+    const targetChannel = await message.client.channels
+      .fetch(channelId)
+      .catch(() => null);
+    if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
+      continue;
+    }
+    const webhook = await getAnnouncementWebhookClient(
+      targetChannel,
+      webhookName,
+      webhookAvatar
+    );
+    if (!webhook) continue;
+    await webhook.send({
+      content,
+      embeds,
+      files: files.length ? files : undefined,
+      username: webhookName,
+      avatarURL: webhookAvatar ?? undefined,
+    });
+  }
+
+  return true;
 };
 
 export const verifyAnnouncementsForAllGuilds = async client => {
@@ -252,7 +323,7 @@ export const handleAnnouncementSyncCommand = async (interaction, client) => {
       new EmbedBuilder()
         .setColor(0x5865f2)
         .setTitle("🔄 Syncing Announcements")
-        .setDescription("Syncing announcement followers for all guilds..."),
+        .setDescription("Healing announcement channels for all guilds..."),
     ],
     flags: 64,
   });
