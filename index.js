@@ -43,6 +43,11 @@ import {
   registerInviteSyncCommand,
   startInviteCron,
 } from "./invite-handler/index.js";
+import {
+  registerAnnouncementSyncCommand,
+  startAnnouncementCron,
+  verifyAnnouncementFollower,
+} from "./announcement-handler/index.js";
 
 import { pool, testDatabaseConnection } from "./database/mysql.js";
 
@@ -257,6 +262,67 @@ const purgeGuildData = async guildId => {
   }
 };
 
+const purgeGuildData = async guildId => {
+  try {
+    const [[dbRow]] = await pool.query("SELECT DATABASE() AS db");
+    const dbName = dbRow?.db;
+    if (!dbName) return;
+
+    try {
+      await pool.query("DELETE FROM `invites` WHERE guild_id = ?", [guildId]);
+    } catch (err) {
+      console.error("❌ Failed to purge invites table:", err);
+    }
+
+    try {
+      await pool.query(
+        "DELETE FROM `announcement_followers` WHERE guild_id = ?",
+        [guildId]
+      );
+    } catch (err) {
+      console.error("❌ Failed to purge announcement followers table:", err);
+    }
+
+    const [guildIdTables] = await pool.query(
+      `SELECT DISTINCT TABLE_NAME
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = ?
+         AND COLUMN_NAME = 'guild_id'`,
+      [dbName]
+    );
+
+    for (const { TABLE_NAME: tableName } of guildIdTables) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+      try {
+        await pool.query(`DELETE FROM \`${tableName}\` WHERE guild_id = ?`, [
+          guildId,
+        ]);
+      } catch (err) {
+        console.error(`❌ Failed to purge guild data in ${tableName}:`, err);
+      }
+    }
+
+    const [dynamicTables] = await pool.query(
+      `SELECT TABLE_NAME
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = ?
+         AND TABLE_NAME LIKE ?`,
+      [dbName, `%${guildId}%`]
+    );
+
+    for (const { TABLE_NAME: tableName } of dynamicTables) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+      try {
+        await pool.query(`DROP TABLE \`${tableName}\``);
+      } catch (err) {
+        console.error(`❌ Failed to drop table ${tableName}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Guild data purge failed:", err);
+  }
+};
+
 
 /* ===================== PRE-FLIGHT ===================== */
 
@@ -332,17 +398,13 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to register invite sync command:", err);
   }
 
-  for (const guild of client.guilds.cache.values()) {
-    await followAnnouncementChannel(client, guild).catch(() => null);
+  try {
+    await registerAnnouncementSyncCommand();
+  } catch (err) {
+    console.error("❌ Failed to register announcement sync command:", err);
   }
 
-  setInterval(async () => {
-    console.log("[Announcements] Starting hourly health check....");
-    for (const guild of client.guilds.cache.values()) {
-      await followAnnouncementChannel(client, guild).catch(() => null);
-    }
-    console.log("[Announcements] Health check complete..");
-  }, ANNOUNCEMENT_HEALTHCHECK_INTERVAL_MS);
+  startAnnouncementCron(client);
 
   startInviteCron(client);
 });
@@ -398,9 +460,7 @@ client.on("messageCreate", async message => {
 /* ===================== STAFF ROLE TRACKING ===================== */
 
 client.on(Events.GuildCreate, async guild => {
-  console.log("[Announcements] Starting hourly health check....");
-  await followAnnouncementChannel(client, guild).catch(() => null);
-  console.log("[Announcements] Health check complete..");
+  await verifyAnnouncementFollower(client, guild).catch(() => null);
 });
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {

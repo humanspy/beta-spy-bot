@@ -4,6 +4,10 @@ import {
   getInviteSyncCommandDefinition,
   shouldIncludeInviteSyncCommand,
 } from "../../invite-handler/index.js";
+import {
+  getAnnouncementSyncCommandDefinition,
+  shouldIncludeAnnouncementSyncCommand,
+} from "../../announcement-handler/index.js";
 import { hasPermission } from "../core.js";
 
 async function canUpdate(interaction) {
@@ -41,9 +45,13 @@ export default async function update(interaction) {
   );
 
   try {
-    const commands = shouldIncludeInviteSyncCommand(interaction.guild.id)
-      ? [...guildCommands, getInviteSyncCommandDefinition()]
-      : guildCommands;
+    const commands = [...guildCommands];
+    if (shouldIncludeInviteSyncCommand(interaction.guild.id)) {
+      commands.push(getInviteSyncCommandDefinition());
+    }
+    if (shouldIncludeAnnouncementSyncCommand(interaction.guild.id)) {
+      commands.push(getAnnouncementSyncCommandDefinition());
+    }
     await rest.put(
       Routes.applicationGuildCommands(
         process.env.DISCORD_CLIENT_ID,
