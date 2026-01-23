@@ -52,15 +52,31 @@ const staffConfigs = getAllStaffConfigsSorted();
 const ANNOUNCEMENT_SOURCE_GUILD_ID = "1114470427960557650";
 const ANNOUNCEMENT_SOURCE_CHANNEL_ID = "1464318652273922058";
 const ANNOUNCEMENT_TARGET_CHANNEL_NAME = "sgi-core-announcements";
+const ANNOUNCEMENT_HEALTHCHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 const ensureAnnouncementFollowersTable = async () => {
   await pool.query(
     `CREATE TABLE IF NOT EXISTS announcement_followers (
       guild_id BIGINT PRIMARY KEY,
-      channel_id BIGINT NOT NULL,
+      channel_id BIGINT NULL,
+      is_followed BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`
   );
+  const [columns] = await pool.query(
+    "SHOW COLUMNS FROM `announcement_followers`"
+  );
+  const columnNames = new Set(columns.map(col => col.Field));
+  if (!columnNames.has("is_followed")) {
+    await pool.query(
+      "ALTER TABLE `announcement_followers` ADD COLUMN is_followed BOOLEAN DEFAULT FALSE"
+    );
+  }
+  if (!columnNames.has("channel_id")) {
+    await pool.query(
+      "ALTER TABLE `announcement_followers` ADD COLUMN channel_id BIGINT NULL"
+    );
+  }
 };
 
 const getAnnouncementSourceChannel = async client => {
@@ -125,7 +141,11 @@ const followAnnouncementChannel = async (client, guild) => {
   }
   await ensureAnnouncementFollowersTable();
   const sourceChannel = await getAnnouncementSourceChannel(client);
-  if (!sourceChannel) return;
+  if (!sourceChannel) {
+    console.log(`[Announcements] ${guild.name}: FAIL`);
+    return;
+  }
+  let followedStatus = false;
   const [[row]] = await pool
     .query(
       "SELECT channel_id FROM announcement_followers WHERE guild_id = ?",
@@ -137,21 +157,43 @@ const followAnnouncementChannel = async (client, guild) => {
     guild,
     storedChannelId
   ).catch(() => null);
-  if (!targetChannel) return;
-  if (storedChannelId !== targetChannel.id) {
+  if (!targetChannel) {
     await pool.query(
-      `INSERT INTO announcement_followers (guild_id, channel_id)
-      VALUES (?, ?)
-      ON DUPLICATE KEY UPDATE channel_id = VALUES(channel_id)`,
-      [guild.id, targetChannel.id]
+      `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         channel_id = VALUES(channel_id),
+         is_followed = VALUES(is_followed)`,
+      [guild.id, storedChannelId, false]
     );
+    console.log(`[Announcements] ${guild.name}: FAIL`);
+    return;
   }
   const followers = await sourceChannel.fetchFollowers().catch(() => null);
   const alreadyFollowing = followers?.some(follower => {
     return follower.channelId === targetChannel.id;
   });
-  if (alreadyFollowing) return;
-  await sourceChannel.addFollower(targetChannel.id).catch(() => null);
+  if (!alreadyFollowing) {
+    try {
+      await sourceChannel.addFollower(targetChannel.id);
+      followedStatus = true;
+    } catch {
+      followedStatus = false;
+    }
+  } else {
+    followedStatus = true;
+  }
+  await pool.query(
+    `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       channel_id = VALUES(channel_id),
+       is_followed = VALUES(is_followed)`,
+    [guild.id, targetChannel.id, followedStatus]
+  );
+  console.log(
+    `[Announcements] ${guild.name}: ${followedStatus ? "SUCCESS" : "FAIL"}`
+  );
 };
 
 const purgeGuildData = async guildId => {
@@ -164,6 +206,15 @@ const purgeGuildData = async guildId => {
       await pool.query("DELETE FROM `invites` WHERE guild_id = ?", [guildId]);
     } catch (err) {
       console.error("❌ Failed to purge invites table:", err);
+    }
+
+    try {
+      await pool.query(
+        "DELETE FROM `announcement_followers` WHERE guild_id = ?",
+        [guildId]
+      );
+    } catch (err) {
+      console.error("❌ Failed to purge announcement followers table:", err);
     }
 
     const [guildIdTables] = await pool.query(
@@ -284,6 +335,14 @@ client.once(Events.ClientReady, async () => {
   for (const guild of client.guilds.cache.values()) {
     await followAnnouncementChannel(client, guild).catch(() => null);
   }
+
+  setInterval(async () => {
+    console.log("[Announcements] Starting hourly health check....");
+    for (const guild of client.guilds.cache.values()) {
+      await followAnnouncementChannel(client, guild).catch(() => null);
+    }
+    console.log("[Announcements] Health check complete..");
+  }, ANNOUNCEMENT_HEALTHCHECK_INTERVAL_MS);
 
   startInviteCron(client);
 });
