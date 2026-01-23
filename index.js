@@ -49,7 +49,8 @@ import {
   verifyAnnouncementFollower,
 } from "./announcement-handler/index.js";
 
-import { pool, testDatabaseConnection } from "./database/mysql.js";
+import { testDatabaseConnection } from "./database/mysql.js";
+import { purgeGuildData } from "./utils/purgeGuildData.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -322,7 +323,6 @@ const purgeGuildData = async guildId => {
     console.error("❌ Guild data purge failed:", err);
   }
 };
-
 
 /* ===================== PRE-FLIGHT ===================== */
 
