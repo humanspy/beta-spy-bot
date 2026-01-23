@@ -201,6 +201,12 @@ client.on("interactionCreate", async interaction => {
 /* ===================== MESSAGE CREATE ===================== */
 
 client.on("messageCreate", async message => {
+  try {
+    await handleAnnouncementMessageCreate(message);
+  } catch (err) {
+    console.error("❌ Announcement broadcast failed:", err);
+  }
+
   if (message.author.bot) return;
 
   await handleLevelRoleMessage(message);
