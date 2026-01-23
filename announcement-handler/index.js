@@ -108,11 +108,7 @@ export const verifyAnnouncementFollower = async (client, guild) => {
   const sourceChannel = await sourceGuild?.channels
     .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
     .catch(() => null);
-  if (
-    !sourceChannel ||
-    sourceChannel.type !== ChannelType.GuildAnnouncement ||
-    typeof sourceChannel.fetchFollowers !== "function"
-  ) {
+  if (!sourceChannel || sourceChannel.type !== ChannelType.GuildAnnouncement) {
     console.error(
       "[Announcements] Source channel is invalid or not a News channel:",
       ANNOUNCEMENT_SOURCE_CHANNEL_ID
@@ -148,6 +144,9 @@ export const verifyAnnouncementFollower = async (client, guild) => {
   let followedStatus = false;
   let followers;
   try {
+    if (typeof sourceChannel.fetchFollowers !== "function") {
+      throw new TypeError("fetchFollowers is not available on source channel");
+    }
     followers = await sourceChannel.fetchFollowers();
   } catch (error) {
     if (error?.code === 50013) {
