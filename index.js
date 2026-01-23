@@ -8,11 +8,8 @@ import { existsSync } from "fs";
 import {
   Client,
   GatewayIntentBits,
-  EmbedBuilder,
   Events,
   Partials,
-  ChannelType,
-  PermissionFlagsBits,
 } from "discord.js";
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
@@ -43,163 +40,49 @@ import {
   registerInviteSyncCommand,
   startInviteCron,
 } from "./invite-handler/index.js";
-import {
-  registerAnnouncementSyncCommand,
-  startAnnouncementCron,
-  verifyAnnouncementFollower,
-} from "./announcement-handler/index.js";
 
-import { testDatabaseConnection } from "./database/mysql.js";
+import { pool, testDatabaseConnection } from "./database/mysql.js";
 import { purgeGuildData } from "./utils/purgeGuildData.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
 const staffConfigs = getAllStaffConfigsSorted();
 const ANNOUNCEMENT_SOURCE_GUILD_ID = "1114470427960557650";
-const ANNOUNCEMENT_SOURCE_CHANNEL_ID = "1464318652273922058";
-const ANNOUNCEMENT_TARGET_CHANNEL_NAME = "sgi-core-announcements";
-const ANNOUNCEMENT_HEALTHCHECK_INTERVAL_MS = 60 * 60 * 1000;
 
-const ensureAnnouncementFollowersTable = async () => {
-  await pool.query(
-    `CREATE TABLE IF NOT EXISTS announcement_followers (
-      guild_id BIGINT PRIMARY KEY,
-      channel_id BIGINT NULL,
-      is_followed BOOLEAN DEFAULT FALSE,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )`
-  );
-  const [columns] = await pool.query(
-    "SHOW COLUMNS FROM `announcement_followers`"
-  );
-  const columnNames = new Set(columns.map(col => col.Field));
-  if (!columnNames.has("is_followed")) {
-    await pool.query(
-      "ALTER TABLE `announcement_followers` ADD COLUMN is_followed BOOLEAN DEFAULT FALSE"
+const cleanupAnnouncementWebhooks = async client => {
+  let rows;
+  try {
+    const [results] = await pool.query(
+      "SELECT channel_id, webhook_url FROM announcement_followers"
     );
+    rows = results;
+  } catch (error) {
+    console.error("❌ Failed to load announcement follower webhooks:", error);
+    return;
   }
-  if (!columnNames.has("channel_id")) {
-    await pool.query(
-      "ALTER TABLE `announcement_followers` ADD COLUMN channel_id BIGINT NULL"
-    );
-  }
-};
 
-const getAnnouncementSourceChannel = async client => {
-  const channel = await client.channels
-    .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
+  if (!rows?.length) return;
+
+  const sourceGuild = await client.guilds
+    .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
     .catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildAnnouncement) {
-    return null;
-  }
-  return channel;
-};
+  const webhookName = sourceGuild?.name ?? "Announcements";
 
-const ensureAnnouncementChannel = async (guild, channelId = null) => {
-  if (!guild) return null;
-  if (channelId) {
-    const existingById = await guild.channels.fetch(channelId).catch(() => null);
-    if (existingById?.type === ChannelType.GuildText) {
-      const everyoneRoleId = guild.roles.everyone.id;
-      const permissions =
-        existingById.permissionOverwrites.cache.get(everyoneRoleId);
-      if (!permissions?.deny?.has(PermissionFlagsBits.ViewChannel)) {
-        await existingById.permissionOverwrites.edit(everyoneRoleId, {
-          ViewChannel: false,
-        });
-      }
-      return existingById;
+  for (const row of rows) {
+    const channelId = row?.channel_id;
+    if (!channelId) continue;
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) continue;
+    const hooks = await channel.fetchWebhooks().catch(() => null);
+    if (!hooks) continue;
+    const matchingHooks = hooks.filter(hook => {
+      if (row?.webhook_url && hook.url === row.webhook_url) return true;
+      return hook.name === webhookName;
+    });
+    for (const hook of matchingHooks.values()) {
+      await hook.delete("Removing announcement webhooks").catch(() => null);
     }
   }
-  const existing = guild.channels.cache.find(channel => {
-    return (
-      channel.type === ChannelType.GuildText &&
-      channel.name === ANNOUNCEMENT_TARGET_CHANNEL_NAME
-    );
-  });
-
-  if (existing) {
-    const everyoneRoleId = guild.roles.everyone.id;
-    const permissions = existing.permissionOverwrites.cache.get(everyoneRoleId);
-    if (!permissions?.deny?.has(PermissionFlagsBits.ViewChannel)) {
-      await existing.permissionOverwrites.edit(everyoneRoleId, {
-        ViewChannel: false,
-      });
-    }
-    return existing;
-  }
-
-  return guild.channels.create({
-    name: ANNOUNCEMENT_TARGET_CHANNEL_NAME,
-    type: ChannelType.GuildText,
-    permissionOverwrites: [
-      {
-        id: guild.roles.everyone.id,
-        deny: [PermissionFlagsBits.ViewChannel],
-      },
-    ],
-  });
-};
-
-const followAnnouncementChannel = async (client, guild) => {
-  if (guild.id === ANNOUNCEMENT_SOURCE_GUILD_ID) {
-    return;
-  }
-  await ensureAnnouncementFollowersTable();
-  const sourceChannel = await getAnnouncementSourceChannel(client);
-  if (!sourceChannel) {
-    console.log(`[Announcements] ${guild.name}: FAIL`);
-    return;
-  }
-  let followedStatus = false;
-  const [[row]] = await pool
-    .query(
-      "SELECT channel_id FROM announcement_followers WHERE guild_id = ?",
-      [guild.id]
-    )
-    .catch(() => [null]);
-  const storedChannelId = row?.channel_id ?? null;
-  const targetChannel = await ensureAnnouncementChannel(
-    guild,
-    storedChannelId
-  ).catch(() => null);
-  if (!targetChannel) {
-    await pool.query(
-      `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         channel_id = VALUES(channel_id),
-         is_followed = VALUES(is_followed)`,
-      [guild.id, storedChannelId, false]
-    );
-    console.log(`[Announcements] ${guild.name}: FAIL`);
-    return;
-  }
-  const followers = await sourceChannel.fetchFollowers().catch(() => null);
-  const alreadyFollowing = followers?.some(follower => {
-    return follower.channelId === targetChannel.id;
-  });
-  if (!alreadyFollowing) {
-    try {
-      await sourceChannel.addFollower(targetChannel.id);
-      followedStatus = true;
-    } catch {
-      followedStatus = false;
-    }
-  } else {
-    followedStatus = true;
-  }
-  await pool.query(
-    `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
-     VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       channel_id = VALUES(channel_id),
-       is_followed = VALUES(is_followed)`,
-    [guild.id, targetChannel.id, followedStatus]
-  );
-  console.log(
-    `[Announcements] ${guild.name}: ${followedStatus ? "SUCCESS" : "FAIL"}`
-  );
 };
 
 /* ===================== PRE-FLIGHT ===================== */
@@ -276,13 +159,7 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to register invite sync command:", err);
   }
 
-  try {
-    await registerAnnouncementSyncCommand();
-  } catch (err) {
-    console.error("❌ Failed to register announcement sync command:", err);
-  }
-
-  startAnnouncementCron(client);
+  await cleanupAnnouncementWebhooks(client);
 
   startInviteCron(client);
 });
@@ -336,10 +213,6 @@ client.on("messageCreate", async message => {
 });
 
 /* ===================== STAFF ROLE TRACKING ===================== */
-
-client.on(Events.GuildCreate, async guild => {
-  await verifyAnnouncementFollower(client, guild).catch(() => null);
-});
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const config = await getStaffConfig(newMember.guild);
