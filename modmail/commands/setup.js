@@ -254,7 +254,7 @@ export default {
       appealLimit: 2,
       ticketTypes: {
         General: { guide: "Describe your issue clearly.", tags: [] },
-        "Bug Report": { guide: "Describe the bug and steps to reproduce it.", tags: [] },
+        "User Report": { guide: "Report a User.", tags: [] },
         "Ban Appeal": { guide: "Explain why your ban should be reviewed.", tags: [] },
       },
     };
@@ -307,3 +307,4 @@ export default {
     });
   },
 };
+
