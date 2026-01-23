@@ -11,6 +11,8 @@ import {
   EmbedBuilder,
   Events,
   Partials,
+  ChannelType,
+  PermissionFlagsBits,
 } from "discord.js";
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
@@ -43,6 +45,64 @@ import { testDatabaseConnection } from "./database/mysql.js";
 await testDatabaseConnection();
 await initStaffConfigCache();
 const staffConfigs = getAllStaffConfigsSorted();
+const ANNOUNCEMENT_SOURCE_GUILD_ID = "1114470427960557650";
+const ANNOUNCEMENT_SOURCE_CHANNEL_ID = "1464318652273922058";
+const ANNOUNCEMENT_TARGET_CHANNEL_NAME = "sgi-core-announcements";
+
+const getAnnouncementSourceChannel = async client => {
+  const channel = await client.channels
+    .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
+    .catch(() => null);
+  if (!channel || channel.type !== ChannelType.GuildAnnouncement) {
+    return null;
+  }
+  return channel;
+};
+
+const ensureAnnouncementChannel = async guild => {
+  if (!guild) return null;
+  const existing = guild.channels.cache.find(channel => {
+    return (
+      channel.type === ChannelType.GuildText &&
+      channel.name === ANNOUNCEMENT_TARGET_CHANNEL_NAME
+    );
+  });
+
+  if (existing) {
+    const everyoneRoleId = guild.roles.everyone.id;
+    const permissions = existing.permissionOverwrites.cache.get(everyoneRoleId);
+    if (!permissions?.deny?.has(PermissionFlagsBits.ViewChannel)) {
+      await existing.permissionOverwrites.edit(everyoneRoleId, {
+        ViewChannel: false,
+      });
+    }
+    return existing;
+  }
+
+  return guild.channels.create({
+    name: ANNOUNCEMENT_TARGET_CHANNEL_NAME,
+    type: ChannelType.GuildText,
+    permissionOverwrites: [
+      {
+        id: guild.roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+    ],
+  });
+};
+
+const followAnnouncementChannel = async (client, guild) => {
+  if (guild.id === ANNOUNCEMENT_SOURCE_GUILD_ID) {
+    return;
+  }
+  const sourceChannel = await getAnnouncementSourceChannel(client);
+  if (!sourceChannel) return;
+  const targetChannel = await ensureAnnouncementChannel(guild).catch(
+    () => null
+  );
+  if (!targetChannel) return;
+  await sourceChannel.addFollower(targetChannel.id).catch(() => null);
+};
 
 
 /* ===================== PRE-FLIGHT ===================== */
@@ -112,6 +172,10 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error("❌ Failed to sync global staff role assignments:", err);
   }
+
+  for (const guild of client.guilds.cache.values()) {
+    await followAnnouncementChannel(client, guild).catch(() => null);
+  }
 });
 
 /* ===================== INTERACTIONS ===================== */
@@ -163,6 +227,10 @@ client.on("messageCreate", async message => {
 });
 
 /* ===================== STAFF ROLE TRACKING ===================== */
+
+client.on(Events.GuildCreate, async guild => {
+  await followAnnouncementChannel(client, guild).catch(() => null);
+});
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const config = await getStaffConfig(newMember.guild);
