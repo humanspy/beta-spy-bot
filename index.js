@@ -39,8 +39,12 @@ import {
 import { handleModmailCore } from "./modmail/core.js";
 import { initModmail } from "./modmail/index.js";
 import { routeInteraction } from "./router.js";
+import {
+  registerInviteSyncCommand,
+  startInviteCron,
+} from "./invite-handler/index.js";
 
-import { testDatabaseConnection } from "./database/mysql.js";
+import { pool, testDatabaseConnection } from "./database/mysql.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -48,6 +52,16 @@ const staffConfigs = getAllStaffConfigsSorted();
 const ANNOUNCEMENT_SOURCE_GUILD_ID = "1114470427960557650";
 const ANNOUNCEMENT_SOURCE_CHANNEL_ID = "1464318652273922058";
 const ANNOUNCEMENT_TARGET_CHANNEL_NAME = "sgi-core-announcements";
+
+const ensureAnnouncementFollowersTable = async () => {
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS announcement_followers (
+      guild_id BIGINT PRIMARY KEY,
+      channel_id BIGINT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`
+  );
+};
 
 const getAnnouncementSourceChannel = async client => {
   const channel = await client.channels
@@ -59,8 +73,22 @@ const getAnnouncementSourceChannel = async client => {
   return channel;
 };
 
-const ensureAnnouncementChannel = async guild => {
+const ensureAnnouncementChannel = async (guild, channelId = null) => {
   if (!guild) return null;
+  if (channelId) {
+    const existingById = await guild.channels.fetch(channelId).catch(() => null);
+    if (existingById?.type === ChannelType.GuildText) {
+      const everyoneRoleId = guild.roles.everyone.id;
+      const permissions =
+        existingById.permissionOverwrites.cache.get(everyoneRoleId);
+      if (!permissions?.deny?.has(PermissionFlagsBits.ViewChannel)) {
+        await existingById.permissionOverwrites.edit(everyoneRoleId, {
+          ViewChannel: false,
+        });
+      }
+      return existingById;
+    }
+  }
   const existing = guild.channels.cache.find(channel => {
     return (
       channel.type === ChannelType.GuildText &&
@@ -95,13 +123,87 @@ const followAnnouncementChannel = async (client, guild) => {
   if (guild.id === ANNOUNCEMENT_SOURCE_GUILD_ID) {
     return;
   }
+  await ensureAnnouncementFollowersTable();
   const sourceChannel = await getAnnouncementSourceChannel(client);
   if (!sourceChannel) return;
-  const targetChannel = await ensureAnnouncementChannel(guild).catch(
-    () => null
-  );
+  const [[row]] = await pool
+    .query(
+      "SELECT channel_id FROM announcement_followers WHERE guild_id = ?",
+      [guild.id]
+    )
+    .catch(() => [null]);
+  const storedChannelId = row?.channel_id ?? null;
+  const targetChannel = await ensureAnnouncementChannel(
+    guild,
+    storedChannelId
+  ).catch(() => null);
   if (!targetChannel) return;
+  if (storedChannelId !== targetChannel.id) {
+    await pool.query(
+      `INSERT INTO announcement_followers (guild_id, channel_id)
+      VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE channel_id = VALUES(channel_id)`,
+      [guild.id, targetChannel.id]
+    );
+  }
+  const followers = await sourceChannel.fetchFollowers().catch(() => null);
+  const alreadyFollowing = followers?.some(follower => {
+    return follower.channelId === targetChannel.id;
+  });
+  if (alreadyFollowing) return;
   await sourceChannel.addFollower(targetChannel.id).catch(() => null);
+};
+
+const purgeGuildData = async guildId => {
+  try {
+    const [[dbRow]] = await pool.query("SELECT DATABASE() AS db");
+    const dbName = dbRow?.db;
+    if (!dbName) return;
+
+    try {
+      await pool.query("DELETE FROM `invites` WHERE guild_id = ?", [guildId]);
+    } catch (err) {
+      console.error("❌ Failed to purge invites table:", err);
+    }
+
+    const [guildIdTables] = await pool.query(
+      `SELECT DISTINCT TABLE_NAME
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = ?
+         AND COLUMN_NAME = 'guild_id'`,
+      [dbName]
+    );
+
+    for (const { TABLE_NAME: tableName } of guildIdTables) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+      try {
+        await pool.query(`DELETE FROM \`${tableName}\` WHERE guild_id = ?`, [
+          guildId,
+        ]);
+      } catch (err) {
+        console.error(`❌ Failed to purge guild data in ${tableName}:`, err);
+      }
+    }
+
+    const [dynamicTables] = await pool.query(
+      `SELECT TABLE_NAME
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = ?
+         AND TABLE_NAME LIKE ?`,
+      [dbName, `%${guildId}%`]
+    );
+
+    for (const { TABLE_NAME: tableName } of dynamicTables) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+      try {
+        await pool.query(`DROP TABLE \`${tableName}\``);
+      } catch (err) {
+        console.error(`❌ Failed to drop table ${tableName}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Guild data purge failed:", err);
+  }
 };
 
 
@@ -173,9 +275,17 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to sync global staff role assignments:", err);
   }
 
+  try {
+    await registerInviteSyncCommand();
+  } catch (err) {
+    console.error("❌ Failed to register invite sync command:", err);
+  }
+
   for (const guild of client.guilds.cache.values()) {
     await followAnnouncementChannel(client, guild).catch(() => null);
   }
+
+  startInviteCron(client);
 });
 
 /* ===================== INTERACTIONS ===================== */
@@ -247,6 +357,10 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 
 client.on(Events.GuildMemberRemove, async member => {
   await removeMemberStaffRoleAssignments(member.guild.id, member.id);
+});
+
+client.on(Events.GuildDelete, async guild => {
+  await purgeGuildData(guild.id);
 });
 
 /* ===================== LOGIN ===================== */

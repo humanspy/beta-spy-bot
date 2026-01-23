@@ -1,5 +1,9 @@
 import { EmbedBuilder, PermissionFlagsBits, REST, Routes } from "discord.js";
 import { guildCommands } from "../../guild-commands.js";
+import {
+  getInviteSyncCommandDefinition,
+  shouldIncludeInviteSyncCommand,
+} from "../../invite-handler/index.js";
 import { hasPermission } from "../core.js";
 
 async function canUpdate(interaction) {
@@ -37,12 +41,15 @@ export default async function update(interaction) {
   );
 
   try {
+    const commands = shouldIncludeInviteSyncCommand(interaction.guild.id)
+      ? [...guildCommands, getInviteSyncCommandDefinition()]
+      : guildCommands;
     await rest.put(
       Routes.applicationGuildCommands(
         process.env.DISCORD_CLIENT_ID,
         interaction.guild.id
       ),
-      { body: guildCommands }
+      { body: commands }
     );
 
     return interaction.editReply({
