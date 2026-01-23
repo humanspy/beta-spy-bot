@@ -398,7 +398,9 @@ client.on("messageCreate", async message => {
 /* ===================== STAFF ROLE TRACKING ===================== */
 
 client.on(Events.GuildCreate, async guild => {
+  console.log("[Announcements] Starting hourly health check....");
   await followAnnouncementChannel(client, guild).catch(() => null);
+  console.log("[Announcements] Health check complete..");
 });
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
