@@ -1,6 +1,7 @@
 import { handleModeration } from "./moderation/commands/index.js";
 import { handleProfile } from "./profile/router.js";
 import { handleModmail } from "./modmail/index.js";
+import { handleInviteSyncCommand } from "./invite-handler/index.js";
 
 /**
  * Central interaction router
@@ -12,6 +13,18 @@ export async function routeInteraction(interaction) {
   const command = interaction.commandName;
 
   console.log(`[ROUTER] /${command}`);
+
+  /* ===================== INVITE HANDLER ===================== */
+  try {
+    const handled = await handleInviteSyncCommand(interaction, interaction.client);
+    if (handled) {
+      console.log("[ROUTER] → invite-handler");
+      return;
+    }
+  } catch (err) {
+    console.error("[ROUTER] Invite handler error:", err);
+    throw err;
+  }
 
   /* ===================== PROFILE ===================== */
   try {
