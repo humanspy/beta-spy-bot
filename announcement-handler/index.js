@@ -116,31 +116,15 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     )
     .catch(() => [null]);
   const storedChannelId = row?.channel_id ?? null;
-  const sourceGuild = await client.guilds
-    .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
-    .catch(() => null);
-  const sourceChannel = await sourceGuild?.channels
-    .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
-    .catch(() => null);
-  if (!sourceChannel || sourceChannel.type !== ChannelType.GuildAnnouncement) {
-    console.error(
-      "[Announcements] Source channel is invalid or not a News channel:",
-      ANNOUNCEMENT_SOURCE_CHANNEL_ID
-    );
-    await pool.query(
-      `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         channel_id = VALUES(channel_id),
-         is_followed = VALUES(is_followed)`,
-      [guild.id, storedChannelId, false]
-    );
-    console.log(`[Announcements] ${guild.name}: FAIL`);
-    return false;
+  let existingChannel = null;
+  if (storedChannelId) {
+    existingChannel = await guild.channels
+      .fetch(storedChannelId)
+      .catch(() => null);
   }
   const targetChannel = await ensureAnnouncementChannel(
     guild,
-    storedChannelId
+    existingChannel?.id ?? null
   ).catch(() => null);
   const followedStatus = Boolean(targetChannel);
   await pool.query(
