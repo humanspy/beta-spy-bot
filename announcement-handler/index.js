@@ -126,7 +126,25 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     guild,
     existingChannel?.id ?? null
   ).catch(() => null);
-  const followedStatus = Boolean(targetChannel);
+  let followedStatus = false;
+  if (targetChannel) {
+    const sourceGuild = await client.guilds
+      .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
+      .catch(() => null);
+    const webhookName = sourceGuild?.name ?? "Announcements";
+    const webhookAvatar = sourceGuild?.iconURL?.({ extension: "png" }) ?? null;
+    const webhook =
+      (await targetChannel.fetchWebhooks().catch(() => null))?.find(
+        hook => hook.name === webhookName
+      ) ??
+      (await targetChannel
+        .createWebhook({
+          name: webhookName,
+          avatar: webhookAvatar ?? undefined,
+        })
+        .catch(() => null));
+    followedStatus = Boolean(webhook);
+  }
   await pool.query(
     `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
      VALUES (?, ?, ?)
@@ -145,8 +163,14 @@ export const verifyAnnouncementFollower = async (client, guild) => {
 export const handleAnnouncementMessageCreate = async message => {
   if (!message?.guildId) return false;
   if (message.channelId !== ANNOUNCEMENT_SOURCE_CHANNEL_ID) return false;
+  if (message.author?.bot) return false;
 
   await ensureAnnouncementFollowersTable();
+  const sourceGuild = await message.client.guilds
+    .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
+    .catch(() => null);
+  const webhookName = sourceGuild?.name ?? "Announcements";
+  const webhookAvatar = sourceGuild?.iconURL?.({ extension: "png" }) ?? null;
   const [rows] = await pool
     .query(
       "SELECT channel_id FROM announcement_followers WHERE channel_id IS NOT NULL AND is_followed = TRUE"
@@ -168,10 +192,23 @@ export const handleAnnouncementMessageCreate = async message => {
     if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
       continue;
     }
-    await targetChannel.send({
+    const webhook =
+      (await targetChannel.fetchWebhooks().catch(() => null))?.find(
+        hook => hook.name === webhookName
+      ) ??
+      (await targetChannel
+        .createWebhook({
+          name: webhookName,
+          avatar: webhookAvatar ?? undefined,
+        })
+        .catch(() => null));
+    if (!webhook) continue;
+    await webhook.send({
       content,
       embeds,
       files: files.length ? files : undefined,
+      username: webhookName,
+      avatarURL: webhookAvatar ?? undefined,
     });
   }
 
