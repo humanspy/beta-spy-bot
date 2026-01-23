@@ -164,12 +164,28 @@ export const verifyAnnouncementFollower = async (client, guild) => {
       .catch(() => null);
     const webhookName = sourceGuild?.name ?? "Announcements";
     const webhookAvatar = sourceGuild?.iconURL?.({ extension: "png" }) ?? null;
-    const webhook = await getAnnouncementWebhookClient(
-      targetChannel,
-      webhookName,
-      webhookAvatar
-    );
-    followedStatus = Boolean(webhook);
+    try {
+      const webhook = await getAnnouncementWebhookClient(
+        targetChannel,
+        webhookName,
+        webhookAvatar
+      );
+      followedStatus = Boolean(webhook);
+    } catch (error) {
+      if (error?.code === 50013) {
+        console.warn(
+          "[Announcements] Missing ManageWebhooks permission for:",
+          guild.name
+        );
+      } else {
+        console.error(
+          "[Announcements] Failed to init announcement webhook for:",
+          guild.name,
+          error
+        );
+      }
+      followedStatus = false;
+    }
   }
   await pool.query(
     `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
@@ -210,27 +226,35 @@ export const handleAnnouncementMessageCreate = async message => {
   if (!content && !embeds && files.length === 0) return false;
 
   for (const row of rows) {
-    const channelId = row?.channel_id;
-    if (!channelId || channelId === ANNOUNCEMENT_SOURCE_CHANNEL_ID) continue;
-    const targetChannel = await message.client.channels
-      .fetch(channelId)
-      .catch(() => null);
-    if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
-      continue;
+    try {
+      const channelId = row?.channel_id;
+      if (!channelId || channelId === ANNOUNCEMENT_SOURCE_CHANNEL_ID) continue;
+      const targetChannel = await message.client.channels
+        .fetch(channelId)
+        .catch(() => null);
+      if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
+        continue;
+      }
+      const webhook = await getAnnouncementWebhookClient(
+        targetChannel,
+        webhookName,
+        webhookAvatar
+      );
+      if (!webhook) continue;
+      await webhook.send({
+        content,
+        embeds,
+        files: files.length ? files : undefined,
+        username: webhookName,
+        avatarURL: webhookAvatar ?? undefined,
+      });
+    } catch (error) {
+      console.error(
+        "[Announcements] Failed to broadcast to follower channel:",
+        row?.channel_id,
+        error
+      );
     }
-    const webhook = await getAnnouncementWebhookClient(
-      targetChannel,
-      webhookName,
-      webhookAvatar
-    );
-    if (!webhook) continue;
-    await webhook.send({
-      content,
-      embeds,
-      files: files.length ? files : undefined,
-      username: webhookName,
-      avatarURL: webhookAvatar ?? undefined,
-    });
   }
 
   return true;
