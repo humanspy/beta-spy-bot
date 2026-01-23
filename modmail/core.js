@@ -59,7 +59,7 @@ export async function handleModmailCore(interaction) {
     appealLimit: 2,
     ticketTypes: {
       Question: { guide: "Ask your question clearly.", tags: [] },
-      Report: { guide: "To report a User.", tags: [] },
+      "User Report": { guide: "Report a User.", tags: [] },
       "Ban Appeal": { guide: "Explain why your ban should be reviewed.", tags: [] },
     },
   });
@@ -75,5 +75,6 @@ export async function handleModmailCore(interaction) {
 
   return true;
 }
+
 
 
