@@ -11,6 +11,8 @@ import {
   EmbedBuilder,
   Events,
   Partials,
+  ChannelType,
+  PermissionFlagsBits,
 } from "discord.js";
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
@@ -37,13 +39,22 @@ import {
 import { handleModmailCore } from "./modmail/core.js";
 import { initModmail } from "./modmail/index.js";
 import { routeInteraction } from "./router.js";
+import {
+  registerInviteSyncCommand,
+  startInviteCron,
+} from "./invite-handler/index.js";
+import {
+  registerAnnouncementSyncCommand,
+  startAnnouncementCron,
+  verifyAnnouncementFollower,
+} from "./announcement-handler/index.js";
 
 import { testDatabaseConnection } from "./database/mysql.js";
+import { purgeGuildData } from "./utils/purgeGuildData.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
 const staffConfigs = getAllStaffConfigsSorted();
-
 
 /* ===================== PRE-FLIGHT ===================== */
 
@@ -112,6 +123,22 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error("❌ Failed to sync global staff role assignments:", err);
   }
+
+  try {
+    await registerInviteSyncCommand();
+  } catch (err) {
+    console.error("❌ Failed to register invite sync command:", err);
+  }
+
+  try {
+    await registerAnnouncementSyncCommand();
+  } catch (err) {
+    console.error("❌ Failed to register announcement sync command:", err);
+  }
+
+  startAnnouncementCron(client);
+
+  startInviteCron(client);
 });
 
 /* ===================== INTERACTIONS ===================== */
@@ -164,6 +191,10 @@ client.on("messageCreate", async message => {
 
 /* ===================== STAFF ROLE TRACKING ===================== */
 
+client.on(Events.GuildCreate, async guild => {
+  await verifyAnnouncementFollower(client, guild).catch(() => null);
+});
+
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const config = await getStaffConfig(newMember.guild);
   if (!config?.staffRoles?.length) return;
@@ -179,6 +210,10 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 
 client.on(Events.GuildMemberRemove, async member => {
   await removeMemberStaffRoleAssignments(member.guild.id, member.id);
+});
+
+client.on(Events.GuildDelete, async guild => {
+  await purgeGuildData(guild.id);
 });
 
 /* ===================== LOGIN ===================== */
