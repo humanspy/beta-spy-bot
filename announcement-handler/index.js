@@ -163,7 +163,6 @@ export const verifyAnnouncementFollower = async (client, guild) => {
 export const handleAnnouncementMessageCreate = async message => {
   if (!message?.guildId) return false;
   if (message.channelId !== ANNOUNCEMENT_SOURCE_CHANNEL_ID) return false;
-  if (message.author?.bot) return false;
 
   await ensureAnnouncementFollowersTable();
   const sourceGuild = await message.client.guilds
