@@ -1,5 +1,13 @@
 import { EmbedBuilder, PermissionFlagsBits, REST, Routes } from "discord.js";
 import { guildCommands } from "../../guild-commands.js";
+import {
+  getInviteSyncCommandDefinition,
+  shouldIncludeInviteSyncCommand,
+} from "../../invite-handler/index.js";
+import {
+  getAnnouncementSyncCommandDefinition,
+  shouldIncludeAnnouncementSyncCommand,
+} from "../../announcement-handler/index.js";
 import { hasPermission } from "../core.js";
 
 async function canUpdate(interaction) {
@@ -37,12 +45,19 @@ export default async function update(interaction) {
   );
 
   try {
+    const commands = [...guildCommands];
+    if (shouldIncludeInviteSyncCommand(interaction.guild.id)) {
+      commands.push(getInviteSyncCommandDefinition());
+    }
+    if (shouldIncludeAnnouncementSyncCommand(interaction.guild.id)) {
+      commands.push(getAnnouncementSyncCommandDefinition());
+    }
     await rest.put(
       Routes.applicationGuildCommands(
         process.env.DISCORD_CLIENT_ID,
         interaction.guild.id
       ),
-      { body: guildCommands }
+      { body: commands }
     );
 
     return interaction.editReply({

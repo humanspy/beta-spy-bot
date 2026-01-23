@@ -11,6 +11,8 @@ import {
   EmbedBuilder,
   Events,
   Partials,
+  ChannelType,
+  PermissionFlagsBits,
 } from "discord.js";
 
 import { organizeCasesToFolder } from "./moderation/organize-cases.js";
@@ -37,12 +39,82 @@ import {
 import { handleModmailCore } from "./modmail/core.js";
 import { initModmail } from "./modmail/index.js";
 import { routeInteraction } from "./router.js";
+import {
+  registerInviteSyncCommand,
+  startInviteCron,
+} from "./invite-handler/index.js";
+import {
+  registerAnnouncementSyncCommand,
+  startAnnouncementCron,
+  verifyAnnouncementFollower,
+} from "./announcement-handler/index.js";
 
-import { testDatabaseConnection } from "./database/mysql.js";
+import { pool, testDatabaseConnection } from "./database/mysql.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
 const staffConfigs = getAllStaffConfigsSorted();
+
+const purgeGuildData = async guildId => {
+  try {
+    const [[dbRow]] = await pool.query("SELECT DATABASE() AS db");
+    const dbName = dbRow?.db;
+    if (!dbName) return;
+
+    try {
+      await pool.query("DELETE FROM `invites` WHERE guild_id = ?", [guildId]);
+    } catch (err) {
+      console.error("❌ Failed to purge invites table:", err);
+    }
+
+    try {
+      await pool.query(
+        "DELETE FROM `announcement_followers` WHERE guild_id = ?",
+        [guildId]
+      );
+    } catch (err) {
+      console.error("❌ Failed to purge announcement followers table:", err);
+    }
+
+    const [guildIdTables] = await pool.query(
+      `SELECT DISTINCT TABLE_NAME
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = ?
+         AND COLUMN_NAME = 'guild_id'`,
+      [dbName]
+    );
+
+    for (const { TABLE_NAME: tableName } of guildIdTables) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+      try {
+        await pool.query(`DELETE FROM \`${tableName}\` WHERE guild_id = ?`, [
+          guildId,
+        ]);
+      } catch (err) {
+        console.error(`❌ Failed to purge guild data in ${tableName}:`, err);
+      }
+    }
+
+    const [dynamicTables] = await pool.query(
+      `SELECT TABLE_NAME
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = ?
+         AND TABLE_NAME LIKE ?`,
+      [dbName, `%${guildId}%`]
+    );
+
+    for (const { TABLE_NAME: tableName } of dynamicTables) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
+      try {
+        await pool.query(`DROP TABLE \`${tableName}\``);
+      } catch (err) {
+        console.error(`❌ Failed to drop table ${tableName}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Guild data purge failed:", err);
+  }
+};
 
 
 /* ===================== PRE-FLIGHT ===================== */
@@ -112,6 +184,22 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error("❌ Failed to sync global staff role assignments:", err);
   }
+
+  try {
+    await registerInviteSyncCommand();
+  } catch (err) {
+    console.error("❌ Failed to register invite sync command:", err);
+  }
+
+  try {
+    await registerAnnouncementSyncCommand();
+  } catch (err) {
+    console.error("❌ Failed to register announcement sync command:", err);
+  }
+
+  startAnnouncementCron(client);
+
+  startInviteCron(client);
 });
 
 /* ===================== INTERACTIONS ===================== */
@@ -164,6 +252,10 @@ client.on("messageCreate", async message => {
 
 /* ===================== STAFF ROLE TRACKING ===================== */
 
+client.on(Events.GuildCreate, async guild => {
+  await verifyAnnouncementFollower(client, guild).catch(() => null);
+});
+
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const config = await getStaffConfig(newMember.guild);
   if (!config?.staffRoles?.length) return;
@@ -179,6 +271,10 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 
 client.on(Events.GuildMemberRemove, async member => {
   await removeMemberStaffRoleAssignments(member.guild.id, member.id);
+});
+
+client.on(Events.GuildDelete, async guild => {
+  await purgeGuildData(guild.id);
 });
 
 /* ===================== LOGIN ===================== */
