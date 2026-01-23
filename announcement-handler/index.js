@@ -29,16 +29,6 @@ const ensureAnnouncementFollowersTable = async () => {
   );
 };
 
-const getAnnouncementSourceChannel = async client => {
-  const channel = await client.channels
-    .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
-    .catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildAnnouncement) {
-    return null;
-  }
-  return channel;
-};
-
 const ensureAnnouncementChannel = async (guild, channelId = null) => {
   if (!guild) return null;
   if (channelId) {
@@ -105,11 +95,6 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     return;
   }
   await ensureAnnouncementFollowersTable();
-  const sourceChannel = await getAnnouncementSourceChannel(client);
-  if (!sourceChannel) {
-    console.log(`[Announcements] ${guild.name}: FAIL`);
-    return false;
-  }
   const [[row]] = await pool
     .query(
       "SELECT channel_id FROM announcement_followers WHERE guild_id = ?",
@@ -117,6 +102,24 @@ export const verifyAnnouncementFollower = async (client, guild) => {
     )
     .catch(() => [null]);
   const storedChannelId = row?.channel_id ?? null;
+  const sourceChannel = await client.channels
+    .fetch(ANNOUNCEMENT_SOURCE_CHANNEL_ID)
+    .catch(() => null);
+  if (!sourceChannel || sourceChannel.type !== ChannelType.GuildAnnouncement) {
+    console.error(
+      "[Announcements] Source channel is invalid or not a News channel."
+    );
+    await pool.query(
+      `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         channel_id = VALUES(channel_id),
+         is_followed = VALUES(is_followed)`,
+      [guild.id, storedChannelId, false]
+    );
+    console.log(`[Announcements] ${guild.name}: FAIL`);
+    return false;
+  }
   const targetChannel = await ensureAnnouncementChannel(
     guild,
     storedChannelId
@@ -135,10 +138,34 @@ export const verifyAnnouncementFollower = async (client, guild) => {
   }
 
   let followedStatus = false;
-  const followers = await sourceChannel.fetchFollowers().catch(() => null);
-  const alreadyFollowing = followers?.some(follower => {
-    return follower.channelId === targetChannel.id;
-  });
+  let followers;
+  try {
+    followers = await sourceChannel.fetchFollowers();
+  } catch (error) {
+    if (error?.code === 50013) {
+      console.warn(
+        "[Announcements] Missing ManageWebhooks permission to fetch followers."
+      );
+    } else {
+      console.error(
+        "[Announcements] Failed to fetch announcement followers:",
+        error
+      );
+    }
+    await pool.query(
+      `INSERT INTO announcement_followers (guild_id, channel_id, is_followed)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         channel_id = VALUES(channel_id),
+         is_followed = VALUES(is_followed)`,
+      [guild.id, targetChannel.id, false]
+    );
+    console.log(`[Announcements] ${guild.name}: FAIL`);
+    return false;
+  }
+  const alreadyFollowing =
+    followers.has(targetChannel.id) ||
+    followers.some(follower => follower.channelId === targetChannel.id);
   if (!alreadyFollowing) {
     try {
       await sourceChannel.addFollower(targetChannel.id);
