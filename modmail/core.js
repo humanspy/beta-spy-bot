@@ -33,8 +33,10 @@ export async function handleModmailCore(interaction) {
       return true;
     }
 
-    const anonymousValue = interaction.fields
-      .getStringSelectValues("modmail_settings_anonymous")[0];
+    const anonymousInput = interaction.fields
+      .getTextInputValue("modmail_settings_anonymous")
+      .trim()
+      .toLowerCase();
     const appealInput = interaction.fields
       .getTextInputValue("modmail_settings_appeal")
       .trim();
@@ -50,7 +52,21 @@ export async function handleModmailCore(interaction) {
       config.appealLimit = appealLimit;
     }
 
-    config.anonymousStaff = anonymousValue === "true";
+    const anonymousEnabledValues = new Set(["true", "enabled", "on", "yes"]);
+    const anonymousDisabledValues = new Set(["false", "disabled", "off", "no"]);
+
+    if (anonymousEnabledValues.has(anonymousInput)) {
+      config.anonymousStaff = true;
+    } else if (anonymousDisabledValues.has(anonymousInput)) {
+      config.anonymousStaff = false;
+    } else {
+      await interaction.reply({
+        content:
+          "❌ Anonymous setting must be one of: enabled, disabled, true, false, on, off, yes, no.",
+        ephemeral: true,
+      });
+      return true;
+    }
 
     await saveModmailConfig(interaction.guild.id, config);
 

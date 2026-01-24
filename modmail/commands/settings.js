@@ -3,7 +3,6 @@ import {
   EmbedBuilder,
   ModalBuilder,
   PermissionFlagsBits,
-  StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
@@ -50,25 +49,12 @@ export default async function modmailSettings(interaction) {
     .setCustomId("modmail_settings_modal")
     .setTitle("ModMail Settings");
 
-  const anonymousMenu = new StringSelectMenuBuilder()
+  const anonymousInput = new TextInputBuilder()
     .setCustomId("modmail_settings_anonymous")
-    .setPlaceholder("Anonymous staff replies")
-    .setMinValues(1)
-    .setMaxValues(1)
-    .addOptions([
-      {
-        label: "Enabled",
-        description: "Users will see replies as Staff",
-        value: "true",
-        default: config.anonymousStaff === true,
-      },
-      {
-        label: "Disabled",
-        description: "Users will see the staff username",
-        value: "false",
-        default: config.anonymousStaff === false,
-      },
-    ]);
+    .setLabel("Anonymous staff replies (enabled/disabled)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setValue(config.anonymousStaff ? "enabled" : "disabled");
 
   const appealInput = new TextInputBuilder()
     .setCustomId("modmail_settings_appeal")
@@ -78,7 +64,7 @@ export default async function modmailSettings(interaction) {
     .setValue(String(config.appealLimit ?? 0));
 
   modal.addComponents(
-    new ActionRowBuilder().addComponents(anonymousMenu),
+    new ActionRowBuilder().addComponents(anonymousInput),
     new ActionRowBuilder().addComponents(appealInput)
   );
 
