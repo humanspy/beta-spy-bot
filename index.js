@@ -45,6 +45,7 @@ import { pool, testDatabaseConnection } from "./database/mysql.js";
 import { purgeGuildData } from "./utils/purgeGuildData.js";
 import {
   startAnnouncementsCron,
+  syncAnnouncementsForAllGuilds,
   syncAnnouncementsForGuild,
 } from "./utils/announcements.js";
 
@@ -124,6 +125,12 @@ client.once(Events.ClientReady, async () => {
     await registerInviteSyncCommand();
   } catch (err) {
     console.error("❌ Failed to register invite sync command:", err);
+  }
+
+  try {
+    await syncAnnouncementsForAllGuilds(client);
+  } catch (err) {
+    console.error("❌ Failed to sync announcements for existing guilds:", err);
   }
 
   startInviteCron(client);
