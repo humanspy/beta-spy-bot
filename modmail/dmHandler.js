@@ -10,7 +10,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 
-import { loadModmailConfig } from "./config.js";
+import { getEnabledModmailGuildIds, loadModmailConfig } from "./config.js";
 import {
   closeTicket,
   createTicket,
@@ -50,13 +50,10 @@ function isStaffThreadMessage(message, forumChannelId) {
 }
 
 async function getEnabledGuilds(client) {
-  const results = [];
-  for (const guild of client.guilds.cache.values()) {
-    const config = await loadModmailConfig(guild.id);
-    if (!config?.enabled) continue;
-    results.push(guild);
-  }
-  return results;
+  const enabledIds = await getEnabledModmailGuildIds();
+  return enabledIds
+    .map(guildId => client.guilds.cache.get(guildId))
+    .filter(Boolean);
 }
 
 function buildSelectRows(customId, options) {
