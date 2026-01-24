@@ -18,7 +18,6 @@ import {
   incrementAppealCount,
   updateTicketActivity,
 } from "./ticketManager.js";
-import { isBotOwner } from "../moderation/core.js";
 
 const pending = new Map();
 
@@ -416,7 +415,7 @@ export async function handleModmailThreadMessage(message) {
   const user = await message.client.users.fetch(ticket.userId).catch(() => null);
   if (!user) return;
 
-  const anonymous = config.anonymousStaff || isBotOwner(message.author);
+  const anonymous = Boolean(config.anonymousStaff);
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
