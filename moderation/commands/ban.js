@@ -139,7 +139,7 @@ export async function ban(interaction, sub) {
           .addFields({ name: "Server", value: interaction.guild.name })
           .setTimestamp();
         const appealButton = new ButtonBuilder()
-          .setCustomId("modmail_ban_appeal")
+          .setCustomId(`modmail_ban_appeal:${interaction.guild.id}`)
           .setLabel("Ban Appeal")
           .setStyle(ButtonStyle.Primary);
         const row = new ActionRowBuilder().addComponents(appealButton);
