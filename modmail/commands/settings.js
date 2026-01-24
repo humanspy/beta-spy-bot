@@ -1,5 +1,13 @@
-import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
-import { loadModmailConfig, saveModmailConfig } from "../config.js";
+import {
+  ActionRowBuilder,
+  EmbedBuilder,
+  ModalBuilder,
+  PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} from "discord.js";
+import { loadModmailConfig } from "../config.js";
 
 export default async function modmailSettings(interaction) {
   if (
@@ -36,49 +44,43 @@ export default async function modmailSettings(interaction) {
     });
   }
 
-  /* ===================== UPDATE ===================== */
+  /* ===================== MODAL ===================== */
 
-  const appealLimit = interaction.options.getInteger("appeal_limit");
-  const anonymousSetting = interaction.options.getBoolean("anonymous");
-  const hasExplicitUpdates =
-    appealLimit !== null || anonymousSetting !== null;
+  const modal = new ModalBuilder()
+    .setCustomId("modmail_settings_modal")
+    .setTitle("ModMail Settings");
 
-  if (!hasExplicitUpdates) {
-    config.anonymousStaff = !config.anonymousStaff;
-  }
+  const anonymousMenu = new StringSelectMenuBuilder()
+    .setCustomId("modmail_settings_anonymous")
+    .setPlaceholder("Anonymous staff replies")
+    .setMinValues(1)
+    .setMaxValues(1)
+    .addOptions([
+      {
+        label: "Enabled",
+        description: "Users will see replies as Staff",
+        value: "true",
+        default: config.anonymousStaff === true,
+      },
+      {
+        label: "Disabled",
+        description: "Users will see the staff username",
+        value: "false",
+        default: config.anonymousStaff === false,
+      },
+    ]);
 
-  if (anonymousSetting !== null) {
-    config.anonymousStaff = anonymousSetting;
-  }
+  const appealInput = new TextInputBuilder()
+    .setCustomId("modmail_settings_appeal")
+    .setLabel("Ban Appeal Limit (0 = unlimited)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setValue(String(config.appealLimit ?? 0));
 
-  if (appealLimit !== null) {
-    config.appealLimit = appealLimit;
-  }
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(anonymousMenu),
+    new ActionRowBuilder().addComponents(appealInput)
+  );
 
-  await saveModmailConfig(interaction.guild.id, config);
-
-  /* ===================== RESPONSE ===================== */
-
-  const appealText =
-    config.appealLimit > 0
-      ? `**${config.appealLimit}**`
-      : "**Unlimited**";
-
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(config.anonymousStaff ? 0x57f287 : 0xfaa61a)
-        .setTitle("⚙️ ModMail Settings Updated")
-        .setDescription(
-          `Anonymous staff replies are now **${
-            config.anonymousStaff ? "ENABLED" : "DISABLED"
-          }**.\n` +
-          `Ban appeal limit: ${appealText}\n\n` +
-          (config.anonymousStaff
-            ? "Users will see replies as coming from **Staff**."
-            : "Users will see the **staff member’s username**.")
-        ),
-    ],
-    flags: 64,
-  });
+  await interaction.showModal(modal);
 }
