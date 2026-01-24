@@ -31,7 +31,7 @@ function buildTicketModal({ title, guide }) {
 
   const input = new TextInputBuilder()
     .setCustomId("modmail_ticket_content")
-    .setLabel("Describe your issue")
+    .setLabel("Reason / Description")
     .setStyle(TextInputStyle.Paragraph)
     .setRequired(true)
     .setPlaceholder(guide ?? "Provide as much detail as you can.");
@@ -126,6 +126,9 @@ export async function handleModmailDM(message, client) {
 
   if (!state) {
     const enabledGuilds = await getEnabledGuilds(client);
+    if (!enabledGuilds.length) {
+      return message.reply("❌ No modmail servers are available right now.");
+    }
     const options = enabledGuilds
       .slice(0, 24)
       .map(guild => ({
@@ -136,7 +139,7 @@ export async function handleModmailDM(message, client) {
     pending.set(userId, { step: "guild" });
 
     return message.reply({
-      content: "📩 **ModMail**\nSelect a server to open a ticket:",
+      content: "📩 **ModMail**\nStep 1: Select a server to open a ticket:",
       components: buildSelectRows("modmail_guild_select", options),
     });
   }
@@ -238,7 +241,7 @@ export async function handleModmailInteraction(interaction, client) {
     const guide = config.ticketTypes?.["Ban Appeal"]?.guide;
     await interaction.showModal(
       buildTicketModal({
-        title: "Ban Appeal Ticket",
+        title: "Step 3: Ban Appeal Details",
         guide,
       })
     );
@@ -268,7 +271,7 @@ export async function handleModmailInteraction(interaction, client) {
     pending.set(userId, { step: "type", guildId });
 
     await interaction.reply({
-      content: "📌 Select a ticket type:",
+      content: "📌 Step 2: Select a ticket type:",
       components: buildSelectRows("modmail_ticket_type", options),
     });
     return true;
@@ -311,7 +314,7 @@ export async function handleModmailInteraction(interaction, client) {
     const guide = config.ticketTypes?.[type]?.guide;
     await interaction.showModal(
       buildTicketModal({
-        title: `${type} Ticket`,
+        title: `Step 3: ${type} Details`,
         guide,
       })
     );
