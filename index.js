@@ -87,6 +87,16 @@ const client = new Client({
   partials: [Partials.Channel, Partials.Message, Partials.User],
 });
 
+const syncAllGuildRolesForClient = async clientInstance => {
+  for (const guild of clientInstance.guilds.cache.values()) {
+    try {
+      await syncGuildRoles(guild);
+    } catch (err) {
+      console.error("❌ Failed to sync roles for guild:", err);
+    }
+  }
+};
+
 /* ===================== MODMAIL INIT ===================== */
 
 initModmail(client);
@@ -134,13 +144,11 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to sync announcements for existing guilds:", err);
   }
 
-  for (const guild of client.guilds.cache.values()) {
-    try {
-      await syncGuildRoles(guild);
-    } catch (err) {
-      console.error("❌ Failed to sync roles for guild:", err);
-    }
-  }
+  await syncAllGuildRolesForClient(client);
+
+  setInterval(() => {
+    void syncAllGuildRolesForClient(client);
+  }, 10 * 60 * 1000);
 
   startInviteCron(client);
   startAnnouncementsCron(client);
