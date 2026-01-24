@@ -420,10 +420,18 @@ export async function handleModmailThreadMessage(message) {
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(anonymous ? "📨 Staff Reply" : `📨 Reply`)
+    .setTitle(anonymous ? "📨 Staff Reply" : "📨 Reply")
     .setDescription(message.content || "*No content*")
     .setTimestamp();
 
+  if (!anonymous) {
+    embed.setAuthor({
+      name: message.author.tag,
+      iconURL: message.author.displayAvatarURL(),
+    });
+  }
+
   await updateTicketActivity(message.channel.id, message.id);
-  await user.send({ embeds: [embed] }).catch(() => {});
+  const files = getMessageFiles(message);
+  await user.send({ embeds: [embed], files }).catch(() => {});
 }
