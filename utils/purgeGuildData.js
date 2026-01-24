@@ -12,6 +12,14 @@ export const purgeGuildData = async guildId => {
       console.error("❌ Failed to purge invites table:", err);
     }
 
+    try {
+      await pool.query("DELETE FROM `announcements` WHERE guild_id = ?", [
+        guildId,
+      ]);
+    } catch (err) {
+      console.error("❌ Failed to purge announcements table:", err);
+    }
+
     const [guildIdTables] = await pool.query(
       `SELECT DISTINCT TABLE_NAME
        FROM information_schema.COLUMNS
