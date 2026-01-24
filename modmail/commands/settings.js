@@ -53,6 +53,8 @@ export default async function modmailSettings(interaction) {
   const anonymousMenu = new StringSelectMenuBuilder()
     .setCustomId("modmail_settings_anonymous")
     .setPlaceholder("Anonymous staff replies")
+    .setMinValues(1)
+    .setMaxValues(1)
     .addOptions([
       {
         label: "Enabled",
@@ -72,7 +74,7 @@ export default async function modmailSettings(interaction) {
     .setCustomId("modmail_settings_appeal")
     .setLabel("Ban Appeal Limit (0 = unlimited)")
     .setStyle(TextInputStyle.Short)
-    .setRequired(true)
+    .setRequired(false)
     .setValue(String(config.appealLimit ?? 0));
 
   modal.addComponents(

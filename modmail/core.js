@@ -38,18 +38,19 @@ export async function handleModmailCore(interaction) {
     const appealInput = interaction.fields
       .getTextInputValue("modmail_settings_appeal")
       .trim();
-    const appealLimit = Number(appealInput);
-
-    if (!Number.isInteger(appealLimit) || appealLimit < 0) {
-      await interaction.reply({
-        content: "❌ Appeal limit must be a whole number (0 or higher).",
-        ephemeral: true,
-      });
-      return true;
+    if (appealInput !== "") {
+      const appealLimit = Number(appealInput);
+      if (!Number.isInteger(appealLimit) || appealLimit < 0) {
+        await interaction.reply({
+          content: "❌ Appeal limit must be a whole number (0 or higher).",
+          ephemeral: true,
+        });
+        return true;
+      }
+      config.appealLimit = appealLimit;
     }
 
     config.anonymousStaff = anonymousValue === "true";
-    config.appealLimit = appealLimit;
 
     await saveModmailConfig(interaction.guild.id, config);
 
