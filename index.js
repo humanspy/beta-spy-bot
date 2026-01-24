@@ -48,6 +48,7 @@ import {
   syncAnnouncementsForAllGuilds,
   syncAnnouncementsForGuild,
 } from "./utils/announcements.js";
+import { syncGuildRoles } from "./utils/rolesSync.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -85,6 +86,16 @@ const client = new Client({
   ],
   partials: [Partials.Channel, Partials.Message, Partials.User],
 });
+
+const syncAllGuildRolesForClient = async clientInstance => {
+  for (const guild of clientInstance.guilds.cache.values()) {
+    try {
+      await syncGuildRoles(guild);
+    } catch (err) {
+      console.error("❌ Failed to sync roles for guild:", err);
+    }
+  }
+};
 
 /* ===================== MODMAIL INIT ===================== */
 
@@ -132,6 +143,12 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error("❌ Failed to sync announcements for existing guilds:", err);
   }
+
+  await syncAllGuildRolesForClient(client);
+
+  setInterval(() => {
+    void syncAllGuildRolesForClient(client);
+  }, 10 * 60 * 1000);
 
   startInviteCron(client);
   startAnnouncementsCron(client);
@@ -213,6 +230,35 @@ client.on(Events.GuildCreate, async guild => {
     await syncAnnouncementsForGuild(client, guild);
   } catch (err) {
     console.error("❌ Failed to sync announcements for guild:", err);
+  }
+  try {
+    await syncGuildRoles(guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
+  }
+});
+
+client.on(Events.GuildRoleCreate, async role => {
+  try {
+    await syncGuildRoles(role.guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
+  }
+});
+
+client.on(Events.GuildRoleUpdate, async (_oldRole, role) => {
+  try {
+    await syncGuildRoles(role.guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
+  }
+});
+
+client.on(Events.GuildRoleDelete, async role => {
+  try {
+    await syncGuildRoles(role.guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
   }
 });
 
