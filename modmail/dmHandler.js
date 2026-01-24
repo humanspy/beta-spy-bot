@@ -3,11 +3,14 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  ModalBuilder,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js";
 
-import { loadModmailConfig } from "./config.js";
+import { getEnabledModmailGuildIds, loadModmailConfig } from "./config.js";
 import {
   closeTicket,
   createTicket,
@@ -21,6 +24,22 @@ import {
 
 const pending = new Map();
 
+function buildTicketModal({ title, guide }) {
+  const modal = new ModalBuilder()
+    .setCustomId("modmail_ticket_modal")
+    .setTitle(title);
+
+  const input = new TextInputBuilder()
+    .setCustomId("modmail_ticket_content")
+    .setLabel("Reason / Description")
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setPlaceholder(guide ?? "Provide as much detail as you can.");
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return modal;
+}
+
 function isStaffThreadMessage(message, forumChannelId) {
   return (
     message.guild &&
@@ -31,13 +50,10 @@ function isStaffThreadMessage(message, forumChannelId) {
 }
 
 async function getEnabledGuilds(client) {
-  const results = [];
-  for (const guild of client.guilds.cache.values()) {
-    const config = await loadModmailConfig(guild.id);
-    if (!config?.enabled) continue;
-    results.push(guild);
-  }
-  return results;
+  const enabledIds = await getEnabledModmailGuildIds();
+  return enabledIds
+    .map(guildId => client.guilds.cache.get(guildId))
+    .filter(Boolean);
 }
 
 function buildSelectRows(customId, options) {
@@ -53,24 +69,6 @@ function buildSelectRows(customId, options) {
     rows.push(new ActionRowBuilder().addComponents(menu));
   }
   return rows;
-}
-
-async function getAppealEligibleGuilds(client, userId) {
-  const results = [];
-  for (const guild of client.guilds.cache.values()) {
-    const config = await loadModmailConfig(guild.id);
-    if (!config?.enabled) continue;
-
-    const appealLimit = config.appealLimit ?? 0;
-    const appealCount = await getAppealCount(guild.id, userId);
-    if (appealLimit > 0 && appealCount >= appealLimit) continue;
-
-    const ban = await guild.bans.fetch(userId).catch(() => null);
-    if (!ban) continue;
-
-    results.push({ guild, config });
-  }
-  return results;
 }
 
 function buildUserMessageEmbed(message) {
@@ -126,72 +124,11 @@ export async function handleModmailDM(message, client) {
     }
   }
 
-  if (state?.step === "topic") {
-    const config = await loadModmailConfig(state.guildId);
-    if (!config) {
-      pending.delete(userId);
-      return message.reply("❌ Config error.");
-    }
-
-    const openTicket = await getOpenTicketByUserGuild(userId, state.guildId);
-    if (openTicket) {
-      pending.delete(userId);
-      return message.reply(
-        "ℹ️ You already have an open ticket for this server. Close it first."
-      );
-    }
-
-    if (state.type === "Ban Appeal") {
-      const appealLimit = config.appealLimit ?? 0;
-      const appealCount = await getAppealCount(state.guildId, userId);
-      if (appealLimit > 0 && appealCount >= appealLimit) {
-        pending.delete(userId);
-        return message.reply("❌ Appeal limit reached.");
-      }
-
-      const guild = client.guilds.cache.get(state.guildId);
-      const ban = guild
-        ? await guild.bans.fetch(userId).catch(() => null)
-        : null;
-      if (!ban) {
-        pending.delete(userId);
-        return message.reply("❌ You are not banned from that server.");
-      }
-    }
-
-    try {
-      const ticket = await createTicket({
-        guildId: state.guildId,
-        userId,
-        type: state.type,
-        topic: message.content,
-        client,
-      });
-
-      if (state.type === "Ban Appeal") {
-        await incrementAppealCount(state.guildId, userId);
-      }
-
-      const closeRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`modmail_close:${ticket.threadId}`)
-          .setLabel("Close Ticket")
-          .setStyle(ButtonStyle.Danger)
-      );
-
-      pending.delete(userId);
-      return message.reply({
-        content: "✅ Ticket created. You can close it below when resolved.",
-        components: [closeRow],
-      });
-    } catch {
-      pending.delete(userId);
-      return message.reply("❌ Failed to create ticket.");
-    }
-  }
-
   if (!state) {
     const enabledGuilds = await getEnabledGuilds(client);
+    if (!enabledGuilds.length) {
+      return message.reply("❌ No modmail servers are available right now.");
+    }
     const options = enabledGuilds
       .slice(0, 24)
       .map(guild => ({
@@ -199,17 +136,15 @@ export async function handleModmailDM(message, client) {
         value: `guild:${guild.id}`,
       }));
 
-    options.push({ label: "Ban Appeal", value: "appeal" });
-
     pending.set(userId, { step: "guild" });
 
     return message.reply({
-      content: "📩 **ModMail**\nSelect a server or choose Ban Appeal:",
+      content: "📩 **ModMail**\nStep 1: Select a server to open a ticket:",
       components: buildSelectRows("modmail_guild_select", options),
     });
   }
 
-  return message.reply("ℹ️ Please use the selection menu to continue.");
+  return message.reply("ℹ️ Please use the selection menu or modal to continue.");
 }
 
 export async function handleModmailInteraction(interaction, client) {
@@ -267,51 +202,54 @@ export async function handleModmailInteraction(interaction, client) {
       return true;
     }
 
-    if (interaction.customId !== "modmail_ban_appeal") return false;
+    if (!interaction.customId.startsWith("modmail_ban_appeal")) return false;
 
-    const appealGuilds = await getAppealEligibleGuilds(client, userId);
-    if (!appealGuilds.length) {
-      await interaction.reply("❌ No eligible ban appeal servers found.");
+    const [, appealGuildId] = interaction.customId.split(":");
+    if (!appealGuildId) {
+      await interaction.reply("❌ This appeal link is missing server details.");
       return true;
     }
 
-    const options = appealGuilds.map(({ guild }) => ({
-      label: guild.name,
-      value: guild.id,
-    }));
+    const config = await loadModmailConfig(appealGuildId);
+    if (!config) {
+      await interaction.reply("❌ Modmail is not configured for that server.");
+      return true;
+    }
 
-    pending.set(userId, { step: "appeal_select" });
+    const appealLimit = config.appealLimit ?? 0;
+    const appealCount = await getAppealCount(appealGuildId, userId);
+    if (appealLimit > 0 && appealCount >= appealLimit) {
+      await interaction.reply("❌ Appeal limit reached for this server.");
+      return true;
+    }
 
-    await interaction.reply({
-      content: "🔍 Select a server to appeal your ban:",
-      components: buildSelectRows("modmail_appeal_select", options),
+    const guild = client.guilds.cache.get(appealGuildId);
+    const ban = guild
+      ? await guild.bans.fetch(userId).catch(() => null)
+      : null;
+    if (!ban) {
+      await interaction.reply("❌ You are not banned from that server.");
+      return true;
+    }
+
+    pending.set(userId, {
+      step: "modal",
+      guildId: appealGuildId,
+      type: "Ban Appeal",
     });
+
+    const guide = config.ticketTypes?.["Ban Appeal"]?.guide;
+    await interaction.showModal(
+      buildTicketModal({
+        title: "Step 3: Ban Appeal Details",
+        guide,
+      })
+    );
     return true;
   }
 
   if (interaction.customId === "modmail_guild_select") {
     const selection = interaction.values[0];
-    if (selection === "appeal") {
-      const appealGuilds = await getAppealEligibleGuilds(client, userId);
-      if (!appealGuilds.length) {
-        await interaction.reply("❌ No eligible ban appeal servers found.");
-        return true;
-      }
-
-      const options = appealGuilds.map(({ guild }) => ({
-        label: guild.name,
-        value: guild.id,
-      }));
-
-      pending.set(userId, { step: "appeal_select" });
-
-      await interaction.reply({
-        content: "🔍 Select a server to appeal your ban:",
-        components: buildSelectRows("modmail_appeal_select", options),
-      });
-      return true;
-    }
-
     const guildId = selection.split(":")[1];
     const config = await loadModmailConfig(guildId);
     if (!config) {
@@ -333,7 +271,7 @@ export async function handleModmailInteraction(interaction, client) {
     pending.set(userId, { step: "type", guildId });
 
     await interaction.reply({
-      content: "📌 Select a ticket type:",
+      content: "📌 Step 2: Select a ticket type:",
       components: buildSelectRows("modmail_ticket_type", options),
     });
     return true;
@@ -347,56 +285,126 @@ export async function handleModmailInteraction(interaction, client) {
       return true;
     }
 
-    pending.set(userId, { step: "topic", guildId, type });
+    const openTicket = await getOpenTicketByUserGuild(userId, guildId);
+    if (openTicket) {
+      await interaction.reply(
+        "ℹ️ You already have an open ticket for this server. Close it first."
+      );
+      return true;
+    }
+
+    if (type === "Ban Appeal") {
+      const appealLimit = config.appealLimit ?? 0;
+      const appealCount = await getAppealCount(guildId, userId);
+      if (appealLimit > 0 && appealCount >= appealLimit) {
+        await interaction.reply("❌ Appeal limit reached for this server.");
+        return true;
+      }
+
+      const guild = client.guilds.cache.get(guildId);
+      const ban = guild ? await guild.bans.fetch(userId).catch(() => null) : null;
+      if (!ban) {
+        await interaction.reply("❌ You are not banned from that server.");
+        return true;
+      }
+    }
+
+    pending.set(userId, { step: "modal", guildId, type });
 
     const guide = config.ticketTypes?.[type]?.guide;
-    await interaction.reply(
-      guide
-        ? `✏️ ${guide}`
-        : "✏️ Please describe your issue."
-    );
-    return true;
-  }
-
-  if (interaction.customId === "modmail_appeal_select") {
-    const guildId = interaction.values[0];
-    const config = await loadModmailConfig(guildId);
-    if (!config) {
-      await interaction.reply("❌ Modmail is not configured for that server.");
-      return true;
-    }
-
-    const appealLimit = config.appealLimit ?? 0;
-    const appealCount = await getAppealCount(guildId, userId);
-    if (appealLimit > 0 && appealCount >= appealLimit) {
-      await interaction.reply("❌ Appeal limit reached for this server.");
-      return true;
-    }
-
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) {
-      await interaction.reply("❌ Server not found.");
-      return true;
-    }
-
-    const ban = await guild.bans.fetch(userId).catch(() => null);
-    if (!ban) {
-      await interaction.reply("❌ You are not banned from that server.");
-      return true;
-    }
-
-    pending.set(userId, { step: "topic", guildId, type: "Ban Appeal" });
-
-    const guide = config.ticketTypes?.["Ban Appeal"]?.guide;
-    await interaction.reply(
-      guide
-        ? `✏️ ${guide}`
-        : "✏️ Please describe your ban appeal."
+    await interaction.showModal(
+      buildTicketModal({
+        title: `Step 3: ${type} Details`,
+        guide,
+      })
     );
     return true;
   }
 
   return false;
+}
+
+export async function handleModmailModal(interaction, client) {
+  if (!interaction.isModalSubmit()) return false;
+  if (interaction.customId !== "modmail_ticket_modal") return false;
+
+  const userId = interaction.user.id;
+  const state = pending.get(userId);
+  if (!state || state.step !== "modal") {
+    await interaction.reply("❌ No pending ticket found. Please start again.");
+    return true;
+  }
+
+  const { guildId, type } = state;
+  const config = await loadModmailConfig(guildId);
+  if (!config) {
+    pending.delete(userId);
+    await interaction.reply("❌ Modmail is not configured for that server.");
+    return true;
+  }
+
+  const openTicket = await getOpenTicketByUserGuild(userId, guildId);
+  if (openTicket) {
+    pending.delete(userId);
+    await interaction.reply(
+      "ℹ️ You already have an open ticket for this server. Close it first."
+    );
+    return true;
+  }
+
+  if (type === "Ban Appeal") {
+    const appealLimit = config.appealLimit ?? 0;
+    const appealCount = await getAppealCount(guildId, userId);
+    if (appealLimit > 0 && appealCount >= appealLimit) {
+      pending.delete(userId);
+      await interaction.reply("❌ Appeal limit reached for this server.");
+      return true;
+    }
+
+    const guild = client.guilds.cache.get(guildId);
+    const ban = guild ? await guild.bans.fetch(userId).catch(() => null) : null;
+    if (!ban) {
+      pending.delete(userId);
+      await interaction.reply("❌ You are not banned from that server.");
+      return true;
+    }
+  }
+
+  const content = interaction.fields
+    .getTextInputValue("modmail_ticket_content")
+    .trim();
+
+  try {
+    const ticket = await createTicket({
+      guildId,
+      userId,
+      type,
+      topic: content,
+      client,
+    });
+
+    if (type === "Ban Appeal") {
+      await incrementAppealCount(guildId, userId);
+    }
+
+    const closeRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`modmail_close:${ticket.threadId}`)
+        .setLabel("Close Ticket")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    pending.delete(userId);
+    await interaction.reply({
+      content: "✅ Ticket created. You can close it below when resolved.",
+      components: [closeRow],
+    });
+    return true;
+  } catch {
+    pending.delete(userId);
+    await interaction.reply("❌ Failed to create ticket.");
+    return true;
+  }
 }
 
 /* ===================== STAFF → USER ===================== */
