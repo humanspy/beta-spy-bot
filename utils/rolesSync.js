@@ -19,9 +19,10 @@ async function ensureRolesTable(guild) {
 }
 
 function buildRoleEntries(guild) {
-  return guild.roles.cache
-    .sort((a, b) => b.position - a.position)
-    .map((role, index) => ({
+  const sortedRoles = [...guild.roles.cache.values()].sort(
+    (a, b) => b.position - a.position
+  );
+  return sortedRoles.map((role, index) => ({
       roleId: role.id,
       roleName: role.name,
       level: index + 1,
