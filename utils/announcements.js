@@ -4,6 +4,7 @@ import { pool } from "../database/mysql.js";
 
 const SOURCE_GUILD_ID = "1114470427960557650";
 const SOURCE_CHANNEL_ID = "1464318652273922058";
+const ANNOUNCEMENTS_SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
 const ensureAnnouncementsTable = async () => {
   await pool.query(
@@ -103,4 +104,26 @@ export const syncAnnouncementsForGuild = async (client, guild) => {
   if (followed) {
     await saveAnnouncementRecord(guild, updatesChannel, true);
   }
+};
+
+export const syncAnnouncementsForAllGuilds = async client => {
+  const guilds = [...client.guilds.cache.values()];
+  for (const guild of guilds) {
+    try {
+      await syncAnnouncementsForGuild(client, guild);
+    } catch (err) {
+      console.error(
+        `❌ Failed to sync announcements for guild ${guild.id}:`,
+        err
+      );
+    }
+  }
+};
+
+export const startAnnouncementsCron = client => {
+  setInterval(() => {
+    syncAnnouncementsForAllGuilds(client).catch(err => {
+      console.error("❌ Announcements sync cron failed:", err);
+    });
+  }, ANNOUNCEMENTS_SYNC_INTERVAL_MS);
 };

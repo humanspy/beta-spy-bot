@@ -43,7 +43,10 @@ import {
 
 import { pool, testDatabaseConnection } from "./database/mysql.js";
 import { purgeGuildData } from "./utils/purgeGuildData.js";
-import { syncAnnouncementsForGuild } from "./utils/announcements.js";
+import {
+  startAnnouncementsCron,
+  syncAnnouncementsForGuild,
+} from "./utils/announcements.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -124,6 +127,7 @@ client.once(Events.ClientReady, async () => {
   }
 
   startInviteCron(client);
+  startAnnouncementsCron(client);
 });
 
 /* ===================== INTERACTIONS ===================== */
