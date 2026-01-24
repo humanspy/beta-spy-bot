@@ -1,4 +1,5 @@
 import { pool } from "../database/mysql.js";
+import { getGuildTableName } from "../database/tableNames.js";
 
 export const purgeGuildData = async guildId => {
   try {
@@ -46,6 +47,9 @@ export const purgeGuildData = async guildId => {
          AND TABLE_NAME LIKE ?`,
       [dbName, `%${guildId}%`]
     );
+
+    const rolesTable = getGuildTableName(guildId, "roles");
+    dynamicTables.push({ TABLE_NAME: rolesTable });
 
     for (const { TABLE_NAME: tableName } of dynamicTables) {
       if (!/^[A-Za-z0-9_]+$/.test(tableName)) continue;
