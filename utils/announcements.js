@@ -61,6 +61,9 @@ const saveAnnouncementRecord = async (guild, channel, followed) => {
 
 const followSourceChannel = async (client, targetChannel) => {
   if (!targetChannel) return false;
+  if (targetChannel.guild?.id === SOURCE_GUILD_ID) {
+    return false;
+  }
   if (
     ![ChannelType.GuildAnnouncement, ChannelType.GuildText].includes(
       targetChannel.type
