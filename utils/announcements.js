@@ -91,6 +91,13 @@ export const syncAnnouncementsForGuild = async (client, guild) => {
   if (guild.id === SOURCE_GUILD_ID) return;
 
   await ensureAnnouncementsTable();
+  const [[existingRow]] = await pool.query(
+    "SELECT followed FROM announcements WHERE guild_id = ?",
+    [guild.id]
+  );
+  if (existingRow?.followed) {
+    return;
+  }
   const updatesChannel = await resolveCommunityUpdatesChannel(guild);
   if (!updatesChannel) {
     console.warn(
