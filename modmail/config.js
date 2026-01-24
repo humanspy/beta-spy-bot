@@ -48,6 +48,16 @@ export async function loadModmailConfig(guildId) {
   };
 }
 
+export async function getEnabledModmailGuildIds() {
+  await ensureModmailConfigTable();
+  const [rows] = await pool.query(
+    `SELECT guild_id
+     FROM \`${TABLE_NAME}\`
+     WHERE enabled = 1`
+  );
+  return rows.map(row => row.guild_id);
+}
+
 export async function saveModmailConfig(guildId, config) {
   await ensureModmailConfigTable();
   await pool.query(
