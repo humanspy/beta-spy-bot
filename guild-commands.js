@@ -238,21 +238,6 @@ export const guildCommands = [
     .setName("leaderboard")
     .setDescription("Show the server leaderboard"),
  
-  new SlashCommandBuilder()
-    .setName("lvlroles")
-    .setDescription("Configure level-based roles using a setup wizard")
-    .addSubcommand(sub =>
-      sub
-        .setName("setup")
-        .setDescription("Start the level roles setup wizard")
-    )
-    .addSubcommand(sub =>
-      sub
-        .setName("config")
-        .setDescription("Edit existing level roles using the setup wizard")
-    ),
-
-
 ].map(cmd => cmd.toJSON());
 
 
