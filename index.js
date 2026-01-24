@@ -43,6 +43,7 @@ import {
 
 import { pool, testDatabaseConnection } from "./database/mysql.js";
 import { purgeGuildData } from "./utils/purgeGuildData.js";
+import { syncAnnouncementsForGuild } from "./utils/announcements.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -194,6 +195,14 @@ client.on(Events.GuildMemberRemove, async member => {
 
 client.on(Events.GuildDelete, async guild => {
   await purgeGuildData(guild.id);
+});
+
+client.on(Events.GuildCreate, async guild => {
+  try {
+    await syncAnnouncementsForGuild(client, guild);
+  } catch (err) {
+    console.error("❌ Failed to sync announcements for guild:", err);
+  }
 });
 
 /* ===================== LOGIN ===================== */
