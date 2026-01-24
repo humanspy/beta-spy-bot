@@ -48,6 +48,7 @@ import {
   syncAnnouncementsForAllGuilds,
   syncAnnouncementsForGuild,
 } from "./utils/announcements.js";
+import { syncGuildRoles } from "./utils/rolesSync.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -133,6 +134,14 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to sync announcements for existing guilds:", err);
   }
 
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      await syncGuildRoles(guild);
+    } catch (err) {
+      console.error("❌ Failed to sync roles for guild:", err);
+    }
+  }
+
   startInviteCron(client);
   startAnnouncementsCron(client);
 });
@@ -213,6 +222,35 @@ client.on(Events.GuildCreate, async guild => {
     await syncAnnouncementsForGuild(client, guild);
   } catch (err) {
     console.error("❌ Failed to sync announcements for guild:", err);
+  }
+  try {
+    await syncGuildRoles(guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
+  }
+});
+
+client.on(Events.GuildRoleCreate, async role => {
+  try {
+    await syncGuildRoles(role.guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
+  }
+});
+
+client.on(Events.GuildRoleUpdate, async (_oldRole, role) => {
+  try {
+    await syncGuildRoles(role.guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
+  }
+});
+
+client.on(Events.GuildRoleDelete, async role => {
+  try {
+    await syncGuildRoles(role.guild);
+  } catch (err) {
+    console.error("❌ Failed to sync roles for guild:", err);
   }
 });
 
