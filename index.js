@@ -47,43 +47,6 @@ import { purgeGuildData } from "./utils/purgeGuildData.js";
 await testDatabaseConnection();
 await initStaffConfigCache();
 const staffConfigs = getAllStaffConfigsSorted();
-const ANNOUNCEMENT_SOURCE_GUILD_ID = "1114470427960557650";
-
-const cleanupAnnouncementWebhooks = async client => {
-  let rows;
-  try {
-    const [results] = await pool.query(
-      "SELECT channel_id, webhook_url FROM announcement_followers"
-    );
-    rows = results;
-  } catch (error) {
-    console.error("❌ Failed to load announcement follower webhooks:", error);
-    return;
-  }
-
-  if (!rows?.length) return;
-
-  const sourceGuild = await client.guilds
-    .fetch(ANNOUNCEMENT_SOURCE_GUILD_ID)
-    .catch(() => null);
-  const webhookName = sourceGuild?.name ?? "Announcements";
-
-  for (const row of rows) {
-    const channelId = row?.channel_id;
-    if (!channelId) continue;
-    const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (!channel || !channel.isTextBased()) continue;
-    const hooks = await channel.fetchWebhooks().catch(() => null);
-    if (!hooks) continue;
-    const matchingHooks = hooks.filter(hook => {
-      if (row?.webhook_url && hook.url === row.webhook_url) return true;
-      return hook.name === webhookName;
-    });
-    for (const hook of matchingHooks.values()) {
-      await hook.delete("Removing announcement webhooks").catch(() => null);
-    }
-  }
-};
 
 /* ===================== PRE-FLIGHT ===================== */
 
@@ -159,8 +122,6 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to register invite sync command:", err);
   }
 
-  await cleanupAnnouncementWebhooks(client);
-
   startInviteCron(client);
 });
 
@@ -201,12 +162,6 @@ client.on("interactionCreate", async interaction => {
 /* ===================== MESSAGE CREATE ===================== */
 
 client.on("messageCreate", async message => {
-  try {
-    await handleAnnouncementMessageCreate(message);
-  } catch (err) {
-    console.error("❌ Announcement broadcast failed:", err);
-  }
-
   if (message.author.bot) return;
 
   await handleLevelRoleMessage(message);
