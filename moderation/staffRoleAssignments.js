@@ -1,6 +1,24 @@
 import { pool } from "../database/mysql.js";
 
 const TABLE_NAME = "staff_role_assignments";
+const memberSyncSuppressions = new Map();
+const MEMBER_SYNC_SUPPRESS_MS = 15 * 1000;
+
+export function suppressMemberStaffRoleSync(memberId) {
+  if (!memberId) return;
+  memberSyncSuppressions.set(memberId, Date.now() + MEMBER_SYNC_SUPPRESS_MS);
+}
+
+export function isMemberStaffRoleSyncSuppressed(memberId) {
+  if (!memberId) return false;
+  const expiresAt = memberSyncSuppressions.get(memberId);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    memberSyncSuppressions.delete(memberId);
+    return false;
+  }
+  return true;
+}
 
 function normalizeStaffRoleEntries(staffRoles) {
   return (staffRoles ?? [])
@@ -212,6 +230,7 @@ export async function syncStaffRoleAssignmentsFromDatabase(guildConfigs) {
 
       if (rolesToAdd.length) {
         try {
+          suppressMemberStaffRoleSync(member.id);
           await member.roles.add(rolesToAdd);
         } catch (err) {
           console.error(
@@ -223,6 +242,7 @@ export async function syncStaffRoleAssignmentsFromDatabase(guildConfigs) {
 
       if (rolesToRemove.length) {
         try {
+          suppressMemberStaffRoleSync(member.id);
           await member.roles.remove(rolesToRemove);
         } catch (err) {
           console.error(

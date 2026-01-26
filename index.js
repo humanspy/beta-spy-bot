@@ -23,6 +23,7 @@ import {
   removeMemberStaffRoleAssignments,
   syncGuildStaffRoleAssignments,
   syncMemberStaffRoleAssignments,
+  isMemberStaffRoleSyncSuppressed,
   syncStaffRoleAssignmentsFromDatabase,
 } from "./moderation/staffRoleAssignments.js";
 
@@ -223,6 +224,7 @@ client.on("messageCreate", async message => {
 /* ===================== STAFF ROLE TRACKING ===================== */
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  if (isMemberStaffRoleSyncSuppressed(newMember.id)) return;
   const config = await getStaffConfig(newMember.guild);
   if (!config?.staffRoles?.length) return;
   const oldRoles = oldMember.roles.cache;
