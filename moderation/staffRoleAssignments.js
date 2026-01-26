@@ -1,6 +1,24 @@
 import { pool } from "../database/mysql.js";
 
 const TABLE_NAME = "staff_role_assignments";
+const memberSyncSuppressions = new Map();
+const MEMBER_SYNC_SUPPRESS_MS = 15 * 1000;
+
+export function suppressMemberStaffRoleSync(memberId) {
+  if (!memberId) return;
+  memberSyncSuppressions.set(memberId, Date.now() + MEMBER_SYNC_SUPPRESS_MS);
+}
+
+export function isMemberStaffRoleSyncSuppressed(memberId) {
+  if (!memberId) return false;
+  const expiresAt = memberSyncSuppressions.get(memberId);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    memberSyncSuppressions.delete(memberId);
+    return false;
+  }
+  return true;
+}
 
 function normalizeStaffRoleEntries(staffRoles) {
   return (staffRoles ?? [])
@@ -159,6 +177,81 @@ export async function syncAllStaffRoleAssignments(guildConfigs) {
        VALUES ?`,
       [chunk]
     );
+  }
+}
+
+export async function syncStaffRoleAssignmentsFromDatabase(guildConfigs) {
+  await ensureTable();
+
+  if (!guildConfigs?.length) return;
+
+  for (const { guild, staffRoles } of guildConfigs) {
+    if (!guild) continue;
+    const staffRoleEntries = normalizeStaffRoleEntries(staffRoles);
+    if (!staffRoleEntries.length) continue;
+
+    const staffRoleIds = staffRoleEntries
+      .map(role => role.roleId)
+      .filter(Boolean);
+    const staffRoleIdSet = new Set(staffRoleIds);
+
+    const [rows] = await pool.query(
+      `SELECT staff_role_id, user_id
+       FROM \`${TABLE_NAME}\`
+       WHERE guild_id = ?`,
+      [guild.id]
+    );
+
+    const desiredRolesByUser = new Map();
+    for (const row of rows) {
+      if (!staffRoleIdSet.has(row.staff_role_id)) continue;
+      if (!desiredRolesByUser.has(row.user_id)) {
+        desiredRolesByUser.set(row.user_id, new Set());
+      }
+      desiredRolesByUser.get(row.user_id).add(row.staff_role_id);
+    }
+
+    const members = await guild.members.fetch();
+    for (const member of members.values()) {
+      const desiredRoles = desiredRolesByUser.get(member.id) ?? new Set();
+      const rolesToAdd = [];
+      const rolesToRemove = [];
+
+      for (const roleId of staffRoleIds) {
+        if (!guild.roles.cache.has(roleId)) continue;
+        const hasRole = member.roles.cache.has(roleId);
+        const shouldHaveRole = desiredRoles.has(roleId);
+        if (shouldHaveRole && !hasRole) {
+          rolesToAdd.push(roleId);
+        } else if (!shouldHaveRole && hasRole) {
+          rolesToRemove.push(roleId);
+        }
+      }
+
+      if (rolesToAdd.length) {
+        try {
+          suppressMemberStaffRoleSync(member.id);
+          await member.roles.add(rolesToAdd);
+        } catch (err) {
+          console.error(
+            `❌ Failed to add staff roles for ${member.user?.tag ?? member.id}:`,
+            err
+          );
+        }
+      }
+
+      if (rolesToRemove.length) {
+        try {
+          suppressMemberStaffRoleSync(member.id);
+          await member.roles.remove(rolesToRemove);
+        } catch (err) {
+          console.error(
+            `❌ Failed to remove staff roles for ${member.user?.tag ?? member.id}:`,
+            err
+          );
+        }
+      }
+    }
   }
 }
 
