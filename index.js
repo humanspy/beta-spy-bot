@@ -21,9 +21,9 @@ import {
 } from "./moderation/staffConfig.js";
 import {
   removeMemberStaffRoleAssignments,
-  syncAllStaffRoleAssignments,
   syncGuildStaffRoleAssignments,
   syncMemberStaffRoleAssignments,
+  syncStaffRoleAssignmentsFromDatabase,
 } from "./moderation/staffRoleAssignments.js";
 
 import { handleCounting } from "./counting/index.js";
@@ -52,7 +52,6 @@ import { syncGuildRoles } from "./utils/rolesSync.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
-const staffConfigs = getAllStaffConfigsSorted();
 
 /* ===================== PRE-FLIGHT ===================== */
 
@@ -97,6 +96,18 @@ const syncAllGuildRolesForClient = async clientInstance => {
   }
 };
 
+const buildStaffRoleGuildConfigs = async clientInstance => {
+  const guildConfigs = [];
+  for (const config of getAllStaffConfigsSorted()) {
+    const guild =
+      clientInstance.guilds.cache.get(config.guildId) ??
+      (await clientInstance.guilds.fetch(config.guildId).catch(() => null));
+    if (!guild) continue;
+    guildConfigs.push({ guild, staffRoles: config.staffRoles });
+  }
+  return guildConfigs;
+};
+
 /* ===================== MODMAIL INIT ===================== */
 
 initModmail(client);
@@ -117,19 +128,15 @@ client.once(Events.ClientReady, async () => {
     // case sync must never crash startup
   }
 
-  const guildConfigs = [];
-  for (const config of staffConfigs) {
-    const guild =
-      client.guilds.cache.get(config.guildId) ??
-      (await client.guilds.fetch(config.guildId).catch(() => null));
-    if (!guild) continue;
-    guildConfigs.push({ guild, staffRoles: config.staffRoles });
-  }
+  const guildConfigs = await buildStaffRoleGuildConfigs(client);
 
   try {
-    await syncAllStaffRoleAssignments(guildConfigs);
+    await syncStaffRoleAssignmentsFromDatabase(guildConfigs);
   } catch (err) {
-    console.error("❌ Failed to sync global staff role assignments:", err);
+    console.error(
+      "❌ Failed to sync staff role assignments from database:",
+      err
+    );
   }
 
   try {
@@ -149,6 +156,17 @@ client.once(Events.ClientReady, async () => {
   setInterval(() => {
     void syncAllGuildRolesForClient(client);
   }, 10 * 60 * 1000);
+
+  setInterval(() => {
+    void buildStaffRoleGuildConfigs(client)
+      .then(syncStaffRoleAssignmentsFromDatabase)
+      .catch(err => {
+        console.error(
+          "❌ Failed to sync staff role assignments from database:",
+          err
+        );
+      });
+  }, 2 * 60 * 1000);
 
   startInviteCron(client);
   startAnnouncementsCron(client);
