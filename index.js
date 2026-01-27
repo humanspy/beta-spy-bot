@@ -49,6 +49,10 @@ import {
   syncAnnouncementsForGuild,
 } from "./utils/announcements.js";
 import { syncGuildRoles } from "./utils/rolesSync.js";
+import {
+  startWebhooksCron,
+  syncWebhooksForAllGuilds,
+} from "./webhooks/index.js";
 
 await testDatabaseConnection();
 await initStaffConfigCache();
@@ -144,6 +148,12 @@ client.once(Events.ClientReady, async () => {
     console.error("❌ Failed to sync announcements for existing guilds:", err);
   }
 
+  try {
+    await syncWebhooksForAllGuilds(client);
+  } catch (err) {
+    console.error("❌ Failed to sync webhooks for existing guilds:", err);
+  }
+
   await syncAllGuildRolesForClient(client);
 
   setInterval(() => {
@@ -152,6 +162,7 @@ client.once(Events.ClientReady, async () => {
 
   startInviteCron(client);
   startAnnouncementsCron(client);
+  startWebhooksCron(client);
 });
 
 /* ===================== INTERACTIONS ===================== */

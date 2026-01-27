@@ -7,7 +7,6 @@ import help from "./help.js";
 import generatebancode from "./generatebancode.js";
 import setup from "./setup.js";
 import kick from "./kick.js";
-import staffwarn from "./staffwarn.js";
 import update from "./update.js";
 import regentimer from "./regentimer.js";
 
@@ -24,7 +23,6 @@ export async function handleModeration(interaction) {
   if (command === "help") return help(interaction);
   if (command === "generatebancode") return generatebancode(interaction);
   if (command === "regentimer") return regentimer(interaction);
-  if (command === "staffwarn") return staffwarn(interaction, sub);
   if (command === "setup") return setup.execute(interaction);
   if (command === "update") return update(interaction);
 

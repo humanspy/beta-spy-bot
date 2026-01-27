@@ -15,6 +15,7 @@ function getDefaultLevelRoles() {
 function getDefaultStaffWarnConfig() {
   return {
     maxWarns: 3,
+    action: "demote",
   };
 }
 
@@ -92,12 +93,16 @@ export async function getStaffConfig(guild) {
         ? JSON.parse(row.level_roles_json)
         : row.level_roles_json
       : getDefaultLevelRoles();
-  const staffWarnConfig =
+  const staffWarnConfigRaw =
     row.staffwarn_config_json
       ? typeof row.staffwarn_config_json === "string"
         ? JSON.parse(row.staffwarn_config_json)
         : row.staffwarn_config_json
-      : getDefaultStaffWarnConfig();
+      : {};
+  const staffWarnConfig = {
+    ...getDefaultStaffWarnConfig(),
+    ...staffWarnConfigRaw,
+  };
 
   const config = {
     guildId,
@@ -197,12 +202,16 @@ export async function initStaffConfigCache() {
           ? JSON.parse(row.level_roles_json)
           : row.level_roles_json
         : getDefaultLevelRoles();
-    const staffWarnConfig =
+    const staffWarnConfigRaw =
       row.staffwarn_config_json
         ? typeof row.staffwarn_config_json === "string"
           ? JSON.parse(row.staffwarn_config_json)
           : row.staffwarn_config_json
-        : getDefaultStaffWarnConfig();
+        : {};
+    const staffWarnConfig = {
+      ...getDefaultStaffWarnConfig(),
+      ...staffWarnConfigRaw,
+    };
     staffConfigCache.set(String(row.guild_id), {
       guildId: row.guild_id,
       staffRoles,

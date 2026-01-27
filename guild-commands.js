@@ -221,6 +221,35 @@ export const guildCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("promotion")
+    .setDescription("Manage staff promotions")
+    .addSubcommand(sub =>
+      sub.setName("apply")
+        .setDescription("Promote a staff member")
+        .addUserOption(o =>
+          o.setName("user").setDescription("Staff member").setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub.setName("config")
+        .setDescription("Configure first promotion role count")
+        .addIntegerOption(o =>
+          o.setName("first_roles").setDescription("Roles granted on first promotion").setRequired(true)
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("demotion")
+    .setDescription("Manage staff demotions")
+    .addSubcommand(sub =>
+      sub.setName("apply")
+        .setDescription("Demote a staff member")
+        .addUserOption(o =>
+          o.setName("user").setDescription("Staff member").setRequired(true)
+        )
+    ),
+
+  new SlashCommandBuilder()
     .setName("help")
     .setDescription("Show all moderation commands"),
 

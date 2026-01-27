@@ -2,6 +2,7 @@ import { handleModeration } from "./moderation/commands/index.js";
 import { handleProfile } from "./profile/router.js";
 import { handleModmail } from "./modmail/index.js";
 import { handleInviteSyncCommand } from "./invite-handler/index.js";
+import { handleStaffModeration } from "./staffmoderation/commands/index.js";
 
 /**
  * Central interaction router
@@ -57,6 +58,18 @@ export async function routeInteraction(interaction) {
 
   return;
 }
+
+  /* ===================== STAFF MODERATION ===================== */
+  try {
+    const handled = await handleStaffModeration(interaction);
+    if (handled) {
+      console.log("[ROUTER] → staffmoderation");
+      return;
+    }
+  } catch (err) {
+    console.error("[ROUTER] Staff moderation error:", err);
+    throw err;
+  }
 
   
   /* ===================== MODMAIL ===================== */

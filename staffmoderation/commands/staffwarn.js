@@ -1,11 +1,22 @@
 import { EmbedBuilder } from "discord.js";
-import { getHighestStaffRole, hasPermission } from "../core.js";
-import { getStaffConfig, saveStaffConfig } from "../staffConfig.js";
+import { getHighestStaffRole, hasPermission } from "../../moderation/core.js";
+import { getStaffConfig, saveStaffConfig } from "../../moderation/staffConfig.js";
 import {
   addStaffWarn,
+  clearStaffWarns,
   getActiveStaffWarns,
   removeStaffWarn,
-} from "../staffWarns.js";
+} from "../../moderation/staffWarns.js";
+
+function sortRoleIdsAscending(roleIds) {
+  return [...roleIds].sort((a, b) => {
+    const aId = BigInt(a);
+    const bId = BigInt(b);
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
 
 export default async function staffwarn(interaction, sub) {
   try {
@@ -21,6 +32,10 @@ export default async function staffwarn(interaction, sub) {
     }
 
     const maxWarns = config.staffWarnConfig?.maxWarns ?? 3;
+    const maxWarnAction =
+      config.staffWarnConfig?.action?.toLowerCase() === "strip"
+        ? "strip"
+        : "demote";
 
     if (sub === "add") {
       const staffMember = interaction.options.getMember("user");
@@ -41,11 +56,6 @@ export default async function staffwarn(interaction, sub) {
         interaction.guild,
         staffMember.id
       );
-      if (activeWarns.length >= maxWarns) {
-        return interaction.editReply(
-          `❌ This staff member already has the maximum of ${maxWarns} active warnings.`
-        );
-      }
 
       const result = await addStaffWarn(interaction.guild, {
         staffId: staffMember.id,
@@ -55,13 +65,30 @@ export default async function staffwarn(interaction, sub) {
         reason,
       });
 
-      if (activeWarns.length + 1 >= maxWarns) {
-        const rolesToRemove = (config.staffRoles ?? [])
-          .map(role => role.roleId)
-          .filter(roleId => staffMember.roles.cache.has(roleId));
-        if (rolesToRemove.length) {
-          await staffMember.roles.remove(rolesToRemove).catch(() => {});
+      const reachedMax = activeWarns.length + 1 >= maxWarns;
+      if (reachedMax) {
+        const staffRoleIds = sortRoleIdsAscending(
+          (config.staffRoles ?? []).map(role => role.roleId)
+        );
+
+        if (maxWarnAction === "strip") {
+          const rolesToRemove = staffRoleIds.filter(roleId =>
+            staffMember.roles.cache.has(roleId)
+          );
+          if (rolesToRemove.length) {
+            await staffMember.roles.remove(rolesToRemove).catch(() => {});
+          }
+        } else {
+          const ownedRoles = staffRoleIds.filter(roleId =>
+            staffMember.roles.cache.has(roleId)
+          );
+          const highestRoleId = ownedRoles[ownedRoles.length - 1];
+          if (highestRoleId) {
+            await staffMember.roles.remove(highestRoleId).catch(() => {});
+          }
         }
+
+        await clearStaffWarns(interaction.guild, staffMember.id);
       }
 
       const embed = new EmbedBuilder()
@@ -105,8 +132,12 @@ export default async function staffwarn(interaction, sub) {
         }
       }
 
+      const resetNote = reachedMax
+        ? " Warnings reset after reaching the maximum."
+        : "";
+
       return interaction.editReply(
-        `⚠️ Staff warning issued to **${staffMember.user.tag}** (ID #${result.warnId}).`
+        `⚠️ Staff warning issued to **${staffMember.user.tag}** (ID #${result.warnId}).${resetNote}`
       );
     }
 
@@ -189,6 +220,7 @@ export default async function staffwarn(interaction, sub) {
       }
 
       config.staffWarnConfig = {
+        ...config.staffWarnConfig,
         maxWarns: maxWarnsInput,
       };
       await saveStaffConfig(interaction.guild, config);
