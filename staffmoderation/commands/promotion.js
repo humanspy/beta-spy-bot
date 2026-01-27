@@ -47,32 +47,7 @@ function resolveFirstPromotionRoleIds(eligibleRoles, promoConfig) {
   const filteredConfigured = configuredIds.filter(id =>
     eligibleIds.includes(id)
   );
-  if (filteredConfigured.length) {
-    return filteredConfigured;
-  }
-
-  const firstPromotionRoles = Math.min(
-    promoConfig.firstPromotionRoles ?? 1,
-    eligibleRoles.length
-  );
-  return eligibleRoles
-    .slice(0, Math.max(firstPromotionRoles, 1))
-    .map(role => role.roleId);
-}
-
-function resolveMinFirstIndex(eligibleRoles, promoConfig) {
-  const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
-    eligibleRoles,
-    promoConfig
-  );
-  const indexMap = new Map(
-    eligibleRoles.map((role, index) => [role.roleId, index])
-  );
-  const indices = firstPromotionRoleIds
-    .map(roleId => indexMap.get(roleId))
-    .filter(index => typeof index === "number");
-  if (!indices.length) return 0;
-  return Math.max(...indices);
+  return filteredConfigured;
 }
 
 export default async function promotion(interaction) {
@@ -120,6 +95,10 @@ export default async function promotion(interaction) {
       return interaction.editReply("❌ No eligible staff roles found.");
     }
 
+    if (member.roles.cache.has(promoConfig.highestRoleId)) {
+      return interaction.editReply("✅ This member is already at the top role.");
+    }
+
     const currentRoleIndices = eligibleRoles
       .map((role, index) => (member.roles.cache.has(role.roleId) ? index : -1))
       .filter(index => index >= 0);
@@ -127,13 +106,19 @@ export default async function promotion(interaction) {
       currentRoleIndices.length > 0 ? Math.max(...currentRoleIndices) : -1;
     const promoCount = await getPromoCount(interaction.guild, member.id);
 
-    const minFirstIndex = resolveMinFirstIndex(eligibleRoles, promoConfig);
-
     if (promoCount <= 0) {
-      const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
+      const configuredFirstRoleIds = resolveFirstPromotionRoleIds(
         eligibleRoles,
         promoConfig
-      ).filter(roleId => !member.roles.cache.has(roleId));
+      );
+      if (!configuredFirstRoleIds.length) {
+        return interaction.editReply(
+          "❌ No first promotion roles are configured."
+        );
+      }
+      const firstPromotionRoleIds = configuredFirstRoleIds.filter(
+        roleId => !member.roles.cache.has(roleId)
+      );
       if (!firstPromotionRoleIds.length) {
         return interaction.editReply(
           "✅ No new roles to add for this promotion."
@@ -150,7 +135,7 @@ export default async function promotion(interaction) {
       return interaction.editReply("✅ This member is already at the top role.");
     }
 
-    const targetIndex = Math.max(currentMaxIndex + 1, minFirstIndex);
+    const targetIndex = currentMaxIndex + 1;
     const nextRole = eligibleRoles[targetIndex]?.roleId;
     if (!nextRole) {
       return interaction.editReply("✅ No new roles to add for this promotion.");

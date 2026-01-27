@@ -47,32 +47,7 @@ function resolveFirstPromotionRoleIds(eligibleRoles, promoConfig) {
   const filteredConfigured = configuredIds.filter(id =>
     eligibleIds.includes(id)
   );
-  if (filteredConfigured.length) {
-    return filteredConfigured;
-  }
-
-  const firstPromotionRoles = Math.min(
-    promoConfig.firstPromotionRoles ?? 1,
-    eligibleRoles.length
-  );
-  return eligibleRoles
-    .slice(0, Math.max(firstPromotionRoles, 1))
-    .map(role => role.roleId);
-}
-
-function resolveMinFirstIndex(eligibleRoles, promoConfig) {
-  const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
-    eligibleRoles,
-    promoConfig
-  );
-  const indexMap = new Map(
-    eligibleRoles.map((role, index) => [role.roleId, index])
-  );
-  const indices = firstPromotionRoleIds
-    .map(roleId => indexMap.get(roleId))
-    .filter(index => typeof index === "number");
-  if (!indices.length) return 0;
-  return Math.max(...indices);
+  return filteredConfigured;
 }
 
 export default async function demotion(interaction) {
@@ -122,27 +97,36 @@ export default async function demotion(interaction) {
     const currentMaxIndex =
       currentRoleIndices.length > 0 ? Math.max(...currentRoleIndices) : -1;
 
-    const minFirstIndex = resolveMinFirstIndex(eligibleRoles, promoConfig);
-    const promoCount = await getPromoCount(interaction.guild, member.id);
-
-    if (promoCount <= 0) {
+    const configuredFirstRoleIds = resolveFirstPromotionRoleIds(
+      eligibleRoles,
+      promoConfig
+    );
+    if (!configuredFirstRoleIds.length) {
       return interaction.editReply(
-        "✅ This member is already at the lowest demotion tier."
+        "❌ No first promotion roles are configured."
       );
     }
 
-    const roleToRemove = eligibleRoles[currentMaxIndex]?.roleId;
+    const firstRoleIndexMap = new Map(
+      eligibleRoles.map((role, index) => [role.roleId, index])
+    );
+    const configuredFirstIndices = configuredFirstRoleIds
+      .map(roleId => firstRoleIndexMap.get(roleId))
+      .filter(index => typeof index === "number");
+    const maxFirstIndex = configuredFirstIndices.length
+      ? Math.max(...configuredFirstIndices)
+      : -1;
+
     const rolesToRemove = [];
-    if (roleToRemove && member.roles.cache.has(roleToRemove)) {
-      rolesToRemove.push(roleToRemove);
-    }
-    if (promoCount === 1 || currentMaxIndex <= minFirstIndex) {
-      const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
-        eligibleRoles,
-        promoConfig
-      );
-      for (const roleId of firstPromotionRoleIds) {
-        if (member.roles.cache.has(roleId) && !rolesToRemove.includes(roleId)) {
+
+    if (currentMaxIndex > maxFirstIndex) {
+      const roleToRemove = eligibleRoles[currentMaxIndex]?.roleId;
+      if (roleToRemove && member.roles.cache.has(roleToRemove)) {
+        rolesToRemove.push(roleToRemove);
+      }
+    } else {
+      for (const roleId of configuredFirstRoleIds) {
+        if (member.roles.cache.has(roleId)) {
           rolesToRemove.push(roleId);
         }
       }
@@ -153,6 +137,7 @@ export default async function demotion(interaction) {
     }
 
     await member.roles.remove(rolesToRemove).catch(() => null);
+    const promoCount = await getPromoCount(interaction.guild, member.id);
     await setPromoCount(interaction.guild, member.id, promoCount - 1);
 
     return interaction.editReply(
