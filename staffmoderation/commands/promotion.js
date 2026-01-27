@@ -95,6 +95,10 @@ export default async function promotion(interaction) {
       return interaction.editReply("❌ No eligible staff roles found.");
     }
 
+    if (member.roles.cache.has(promoConfig.highestRoleId)) {
+      return interaction.editReply("✅ This member is already at the top role.");
+    }
+
     const currentRoleIndices = eligibleRoles
       .map((role, index) => (member.roles.cache.has(role.roleId) ? index : -1))
       .filter(index => index >= 0);

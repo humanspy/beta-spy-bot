@@ -34,6 +34,14 @@ export async function setPromoCount(guild, userId, promoCount) {
   const guildId = typeof guild === "object" ? guild?.id : guild;
   const tableName = await ensurePromoCountTable();
   const safeCount = Math.max(Number(promoCount ?? 0), 0);
+  if (safeCount === 0) {
+    await pool.query(
+      `DELETE FROM \`${tableName}\`
+       WHERE guild_id = ? AND user_id = ?`,
+      [guildId, userId]
+    );
+    return;
+  }
   await pool.query(
     `INSERT INTO \`${tableName}\`
      (guild_id, user_id, promo_count)

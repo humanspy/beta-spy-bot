@@ -97,35 +97,38 @@ export default async function demotion(interaction) {
     const currentMaxIndex =
       currentRoleIndices.length > 0 ? Math.max(...currentRoleIndices) : -1;
 
-    const promoCount = await getPromoCount(interaction.guild, member.id);
-
-    if (promoCount <= 0) {
+    const configuredFirstRoleIds = resolveFirstPromotionRoleIds(
+      eligibleRoles,
+      promoConfig
+    );
+    if (!configuredFirstRoleIds.length) {
       return interaction.editReply(
-        "✅ This member is already at the lowest demotion tier."
+        "❌ No first promotion roles are configured."
       );
     }
 
+    const firstRoleIndexMap = new Map(
+      eligibleRoles.map((role, index) => [role.roleId, index])
+    );
+    const configuredFirstIndices = configuredFirstRoleIds
+      .map(roleId => firstRoleIndexMap.get(roleId))
+      .filter(index => typeof index === "number");
+    const maxFirstIndex = configuredFirstIndices.length
+      ? Math.max(...configuredFirstIndices)
+      : -1;
+
     const rolesToRemove = [];
 
-    if (promoCount === 1) {
-      const configuredFirstRoleIds = resolveFirstPromotionRoleIds(
-        eligibleRoles,
-        promoConfig
-      );
-      if (!configuredFirstRoleIds.length) {
-        return interaction.editReply(
-          "❌ No first promotion roles are configured."
-        );
+    if (currentMaxIndex > maxFirstIndex) {
+      const roleToRemove = eligibleRoles[currentMaxIndex]?.roleId;
+      if (roleToRemove && member.roles.cache.has(roleToRemove)) {
+        rolesToRemove.push(roleToRemove);
       }
+    } else {
       for (const roleId of configuredFirstRoleIds) {
         if (member.roles.cache.has(roleId)) {
           rolesToRemove.push(roleId);
         }
-      }
-    } else {
-      const roleToRemove = eligibleRoles[currentMaxIndex]?.roleId;
-      if (roleToRemove && member.roles.cache.has(roleToRemove)) {
-        rolesToRemove.push(roleToRemove);
       }
     }
 
@@ -134,6 +137,7 @@ export default async function demotion(interaction) {
     }
 
     await member.roles.remove(rolesToRemove).catch(() => null);
+    const promoCount = await getPromoCount(interaction.guild, member.id);
     await setPromoCount(interaction.guild, member.id, promoCount - 1);
 
     return interaction.editReply(
