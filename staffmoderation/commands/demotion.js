@@ -123,17 +123,22 @@ export default async function demotion(interaction) {
 
     const minFirstIndex = resolveMinFirstIndex(eligibleRoles, promoConfig);
 
-    if (currentMaxIndex <= minFirstIndex) {
-      return interaction.editReply(
-        "✅ This member is already at the lowest demotion tier."
-      );
-    }
-
     const roleToRemove = eligibleRoles[currentMaxIndex]?.roleId;
-    const rolesToRemove =
-      roleToRemove && member.roles.cache.has(roleToRemove)
-        ? [roleToRemove]
-        : [];
+    const rolesToRemove = [];
+    if (roleToRemove && member.roles.cache.has(roleToRemove)) {
+      rolesToRemove.push(roleToRemove);
+    }
+    if (currentMaxIndex === minFirstIndex) {
+      const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
+        eligibleRoles,
+        promoConfig
+      );
+      for (const roleId of firstPromotionRoleIds) {
+        if (member.roles.cache.has(roleId) && !rolesToRemove.includes(roleId)) {
+          rolesToRemove.push(roleId);
+        }
+      }
+    }
 
     if (!rolesToRemove.length) {
       return interaction.editReply("✅ No roles to remove for this demotion.");
