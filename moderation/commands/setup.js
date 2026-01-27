@@ -345,6 +345,7 @@ export default {
       },
       staffWarnConfig: {
         maxWarns: 3,
+        action: "demote",
       },
       overrideCode: null,
       overrideRegenHours: 24,

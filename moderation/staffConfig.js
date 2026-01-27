@@ -15,6 +15,7 @@ function getDefaultLevelRoles() {
 function getDefaultStaffWarnConfig() {
   return {
     maxWarns: 3,
+    action: "demote",
   };
 }
 

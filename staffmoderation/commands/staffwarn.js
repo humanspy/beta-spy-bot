@@ -7,6 +7,16 @@ import {
   getActiveStaffWarns,
 } from "../../moderation/staffWarns.js";
 
+function sortRoleIdsAscending(roleIds) {
+  return [...roleIds].sort((a, b) => {
+    const aId = BigInt(a);
+    const bId = BigInt(b);
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
+
 export default async function staffwarn(interaction, sub) {
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -21,6 +31,11 @@ export default async function staffwarn(interaction, sub) {
     }
 
     const maxWarns = config.staffWarnConfig?.maxWarns ?? 3;
+    const maxWarnAction =
+      config.staffWarnConfig?.action?.toLowerCase() === "strip"
+        ? "strip"
+        : "demote";
+
     if (sub === "add") {
       const staffMember = interaction.options.getMember("user");
       const reason =
@@ -51,6 +66,27 @@ export default async function staffwarn(interaction, sub) {
 
       const reachedMax = activeWarns.length + 1 >= maxWarns;
       if (reachedMax) {
+        const staffRoleIds = sortRoleIdsAscending(
+          (config.staffRoles ?? []).map(role => role.roleId)
+        );
+
+        if (maxWarnAction === "strip") {
+          const rolesToRemove = staffRoleIds.filter(roleId =>
+            staffMember.roles.cache.has(roleId)
+          );
+          if (rolesToRemove.length) {
+            await staffMember.roles.remove(rolesToRemove).catch(() => {});
+          }
+        } else {
+          const ownedRoles = staffRoleIds.filter(roleId =>
+            staffMember.roles.cache.has(roleId)
+          );
+          const highestRoleId = ownedRoles[ownedRoles.length - 1];
+          if (highestRoleId) {
+            await staffMember.roles.remove(highestRoleId).catch(() => {});
+          }
+        }
+
         await clearStaffWarns(interaction.guild, staffMember.id);
       }
 
