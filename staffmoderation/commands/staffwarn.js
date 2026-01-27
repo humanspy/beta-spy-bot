@@ -81,9 +81,13 @@ export default async function staffwarn(interaction, sub) {
           const ownedRoles = staffRoleIds.filter(roleId =>
             staffMember.roles.cache.has(roleId)
           );
-          const highestRoleId = ownedRoles[ownedRoles.length - 1];
-          if (highestRoleId) {
-            await staffMember.roles.remove(highestRoleId).catch(() => {});
+          if (ownedRoles.length <= 2) {
+            await staffMember.roles.remove(ownedRoles).catch(() => {});
+          } else {
+            const highestRoleId = ownedRoles[ownedRoles.length - 1];
+            if (highestRoleId) {
+              await staffMember.roles.remove(highestRoleId).catch(() => {});
+            }
           }
         }
 
