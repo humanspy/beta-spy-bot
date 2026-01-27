@@ -121,3 +121,12 @@ export async function removeStaffWarn(guild, warnId) {
 
   return true;
 }
+
+export async function clearStaffWarns(guild, staffId) {
+  const tableName = await ensureStaffWarnTable(guild);
+  await pool.query(
+    `DELETE FROM \`${tableName}\`
+     WHERE staff_id = ?`,
+    [staffId]
+  );
+}

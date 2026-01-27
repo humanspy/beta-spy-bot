@@ -27,6 +27,10 @@ const PERMISSIONS = [
   "setup",
   "warn",
   "warnstaff",
+  "staffwarn_delete",
+  "staffwarn_modify",
+  "promote",
+  "demote",
   "timeout",
   "case",
   "case_delete",
@@ -289,7 +293,7 @@ export default {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId("role_count")
-          .setLabel("How many staff roles? (0–15)")
+          .setLabel("How many staff roles? (0–30)")
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
       )
@@ -308,12 +312,12 @@ export default {
       modalInt.fields.getTextInputValue("role_count")
     );
 
-    if (Number.isNaN(roleCount) || roleCount < 0 || roleCount > 15) {
+    if (Number.isNaN(roleCount) || roleCount < 0 || roleCount > 30) {
       return modalInt.reply({
         embeds: [
           stepEmbed(
             "❌ Invalid Input",
-            "Role count must be between 0 and 15.",
+            "Role count must be between 0 and 30.",
             "Setup aborted"
           ),
         ],
@@ -343,6 +347,7 @@ export default {
       },
       staffWarnConfig: {
         maxWarns: 3,
+        action: "demote",
       },
       overrideCode: null,
       overrideRegenHours: 24,

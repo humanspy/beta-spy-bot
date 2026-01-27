@@ -199,13 +199,6 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("remove")
-        .setDescription("Remove a staff warning")
-        .addIntegerOption(o =>
-          o.setName("warn_id").setDescription("Warning ID").setRequired(true)
-        )
-    )
-    .addSubcommand(sub =>
       sub.setName("list")
         .setDescription("List staff warnings")
         .addUserOption(o =>
@@ -213,11 +206,25 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("config")
-        .setDescription("Configure staff warning limits")
+      sub.setName("modify")
+        .setDescription("Modify staff warning limits")
         .addIntegerOption(o =>
           o.setName("max_warns").setDescription("Max active warns (1–20)").setRequired(true)
         )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("promote")
+    .setDescription("Promote a staff member")
+    .addUserOption(o =>
+      o.setName("user").setDescription("Staff member").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("demote")
+    .setDescription("Demote a staff member")
+    .addUserOption(o =>
+      o.setName("user").setDescription("Staff member").setRequired(true)
     ),
 
   new SlashCommandBuilder()
