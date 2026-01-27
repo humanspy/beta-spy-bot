@@ -221,8 +221,11 @@ export async function syncStaffRoleAssignmentsFromDatabase(guildConfigs) {
     }
 
     const members = await guild.members.fetch();
-    for (const member of members.values()) {
-      const desiredRoles = desiredRolesByUser.get(member.id) ?? new Set();
+    if (!desiredRolesByUser.size) continue;
+
+    for (const [userId, desiredRoles] of desiredRolesByUser.entries()) {
+      const member = members.get(userId);
+      if (!member) continue;
       const rolesToAdd = [];
       const rolesToRemove = [];
 
