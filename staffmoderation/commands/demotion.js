@@ -1,5 +1,6 @@
 import { hasPermission } from "../../moderation/core.js";
 import { getStaffConfig } from "../../moderation/staffConfig.js";
+import { getPromoCount, setPromoCount } from "../promoCount.js";
 import { getPromoConfig } from "../promoConfig.js";
 
 function sortRoleIdsAscending(roles) {
@@ -122,13 +123,20 @@ export default async function demotion(interaction) {
       currentRoleIndices.length > 0 ? Math.max(...currentRoleIndices) : -1;
 
     const minFirstIndex = resolveMinFirstIndex(eligibleRoles, promoConfig);
+    const promoCount = await getPromoCount(interaction.guild, member.id);
+
+    if (promoCount <= 0) {
+      return interaction.editReply(
+        "✅ This member is already at the lowest demotion tier."
+      );
+    }
 
     const roleToRemove = eligibleRoles[currentMaxIndex]?.roleId;
     const rolesToRemove = [];
     if (roleToRemove && member.roles.cache.has(roleToRemove)) {
       rolesToRemove.push(roleToRemove);
     }
-    if (currentMaxIndex === minFirstIndex) {
+    if (promoCount === 1 || currentMaxIndex <= minFirstIndex) {
       const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
         eligibleRoles,
         promoConfig
@@ -145,6 +153,7 @@ export default async function demotion(interaction) {
     }
 
     await member.roles.remove(rolesToRemove).catch(() => null);
+    await setPromoCount(interaction.guild, member.id, promoCount - 1);
 
     return interaction.editReply(
       `✅ Demoted **${member.user.tag}** to the previous staff tier.`

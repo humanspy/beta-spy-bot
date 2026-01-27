@@ -1,5 +1,6 @@
 import { hasPermission } from "../../moderation/core.js";
 import { getStaffConfig } from "../../moderation/staffConfig.js";
+import { getPromoCount, setPromoCount } from "../promoCount.js";
 import { getPromoConfig } from "../promoConfig.js";
 
 function sortRoleIdsAscending(roles) {
@@ -124,10 +125,11 @@ export default async function promotion(interaction) {
       .filter(index => index >= 0);
     const currentMaxIndex =
       currentRoleIndices.length > 0 ? Math.max(...currentRoleIndices) : -1;
+    const promoCount = await getPromoCount(interaction.guild, member.id);
 
     const minFirstIndex = resolveMinFirstIndex(eligibleRoles, promoConfig);
 
-    if (currentMaxIndex === -1) {
+    if (promoCount <= 0) {
       const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
         eligibleRoles,
         promoConfig
@@ -138,6 +140,7 @@ export default async function promotion(interaction) {
         );
       }
       await member.roles.add(firstPromotionRoleIds).catch(() => null);
+      await setPromoCount(interaction.guild, member.id, 1);
       return interaction.editReply(
         `✅ Promoted **${member.user.tag}** to the next staff tier.`
       );
@@ -160,6 +163,7 @@ export default async function promotion(interaction) {
     }
 
     await member.roles.add(rolesToAdd).catch(() => null);
+    await setPromoCount(interaction.guild, member.id, promoCount + 1);
 
     return interaction.editReply(
       `✅ Promoted **${member.user.tag}** to the next staff tier.`
