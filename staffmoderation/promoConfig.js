@@ -8,6 +8,7 @@ async function ensurePromoConfigTable() {
       guild_id VARCHAR(32) NOT NULL PRIMARY KEY,
       highest_role_id VARCHAR(32) NULL,
       first_promotion_roles INT UNSIGNED NOT NULL DEFAULT 1,
+      first_promotion_role_ids JSON NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP
     )`
@@ -26,6 +27,12 @@ async function ensurePromoConfigTable() {
        ADD COLUMN first_promotion_roles INT UNSIGNED NOT NULL DEFAULT 1`
     );
   }
+  if (!columnNames.has("first_promotion_role_ids")) {
+    await pool.query(
+      `ALTER TABLE \`${TABLE_NAME}\`
+       ADD COLUMN first_promotion_role_ids JSON NULL`
+    );
+  }
   return TABLE_NAME;
 }
 
@@ -33,17 +40,25 @@ export async function getPromoConfig(guild) {
   const guildId = typeof guild === "object" ? guild?.id : guild;
   const tableName = await ensurePromoConfigTable();
   const [rows] = await pool.query(
-    `SELECT guild_id, highest_role_id, first_promotion_roles
+    `SELECT guild_id, highest_role_id, first_promotion_roles,
+            first_promotion_role_ids
      FROM \`${tableName}\`
      WHERE guild_id = ?`,
     [guildId]
   );
   if (!rows.length) return null;
   const row = rows[0];
+  const firstPromotionRoleIds =
+    row.first_promotion_role_ids
+      ? typeof row.first_promotion_role_ids === "string"
+        ? JSON.parse(row.first_promotion_role_ids)
+        : row.first_promotion_role_ids
+      : [];
   return {
     guildId: row.guild_id,
     highestRoleId: row.highest_role_id ?? null,
     firstPromotionRoles: Number(row.first_promotion_roles ?? 1),
+    firstPromotionRoleIds,
   };
 }
 
@@ -52,15 +67,19 @@ export async function savePromoConfig(guild, config) {
   const tableName = await ensurePromoConfigTable();
   await pool.query(
     `INSERT INTO \`${tableName}\`
-     (guild_id, highest_role_id, first_promotion_roles)
-     VALUES (?, ?, ?)
+     (guild_id, highest_role_id, first_promotion_roles, first_promotion_role_ids)
+     VALUES (?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        highest_role_id = VALUES(highest_role_id),
-       first_promotion_roles = VALUES(first_promotion_roles)`,
+       first_promotion_roles = VALUES(first_promotion_roles),
+       first_promotion_role_ids = VALUES(first_promotion_role_ids)`,
     [
       guildId,
       config.highestRoleId ?? null,
       config.firstPromotionRoles ?? 1,
+      config.firstPromotionRoleIds
+        ? JSON.stringify(config.firstPromotionRoleIds)
+        : null,
     ]
   );
 }

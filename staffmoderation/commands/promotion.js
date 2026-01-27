@@ -1,5 +1,6 @@
 import { hasPermission } from "../../moderation/core.js";
 import { getStaffConfig } from "../../moderation/staffConfig.js";
+import { getPromoCount, setPromoCount } from "../promoCount.js";
 import { getPromoConfig } from "../promoConfig.js";
 
 function sortRoleIdsAscending(roles) {
@@ -36,6 +37,42 @@ function resolveEligibleRoles(staffRoles, highestRoleId) {
     eligibleRoles: orderedRoles.slice(0, highestRoleIndex + 1),
     highestRoleIndex,
   };
+}
+
+function resolveFirstPromotionRoleIds(eligibleRoles, promoConfig) {
+  const configuredIds = Array.isArray(promoConfig.firstPromotionRoleIds)
+    ? promoConfig.firstPromotionRoleIds
+    : [];
+  const eligibleIds = eligibleRoles.map(role => role.roleId);
+  const filteredConfigured = configuredIds.filter(id =>
+    eligibleIds.includes(id)
+  );
+  if (filteredConfigured.length) {
+    return filteredConfigured;
+  }
+
+  const firstPromotionRoles = Math.min(
+    promoConfig.firstPromotionRoles ?? 1,
+    eligibleRoles.length
+  );
+  return eligibleRoles
+    .slice(0, Math.max(firstPromotionRoles, 1))
+    .map(role => role.roleId);
+}
+
+function resolveMinFirstIndex(eligibleRoles, promoConfig) {
+  const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
+    eligibleRoles,
+    promoConfig
+  );
+  const indexMap = new Map(
+    eligibleRoles.map((role, index) => [role.roleId, index])
+  );
+  const indices = firstPromotionRoleIds
+    .map(roleId => indexMap.get(roleId))
+    .filter(index => typeof index === "number");
+  if (!indices.length) return 0;
+  return Math.max(...indices);
 }
 
 export default async function promotion(interaction) {
@@ -88,31 +125,45 @@ export default async function promotion(interaction) {
       .filter(index => index >= 0);
     const currentMaxIndex =
       currentRoleIndices.length > 0 ? Math.max(...currentRoleIndices) : -1;
+    const promoCount = await getPromoCount(interaction.guild, member.id);
+
+    const minFirstIndex = resolveMinFirstIndex(eligibleRoles, promoConfig);
+
+    if (promoCount <= 0) {
+      const firstPromotionRoleIds = resolveFirstPromotionRoleIds(
+        eligibleRoles,
+        promoConfig
+      ).filter(roleId => !member.roles.cache.has(roleId));
+      if (!firstPromotionRoleIds.length) {
+        return interaction.editReply(
+          "✅ No new roles to add for this promotion."
+        );
+      }
+      await member.roles.add(firstPromotionRoleIds).catch(() => null);
+      await setPromoCount(interaction.guild, member.id, 1);
+      return interaction.editReply(
+        `✅ Promoted **${member.user.tag}** to the next staff tier.`
+      );
+    }
 
     if (currentMaxIndex >= eligibleRoles.length - 1) {
       return interaction.editReply("✅ This member is already at the top role.");
     }
 
-    const firstPromotionRoles = Math.min(
-      promoConfig.firstPromotionRoles ?? 1,
-      eligibleRoles.length
-    );
-    const minFirstIndex = Math.max(firstPromotionRoles - 1, 0);
-    const targetIndex =
-      currentMaxIndex < minFirstIndex
-        ? minFirstIndex
-        : Math.min(currentMaxIndex + 1, eligibleRoles.length - 1);
+    const targetIndex = Math.max(currentMaxIndex + 1, minFirstIndex);
+    const nextRole = eligibleRoles[targetIndex]?.roleId;
+    if (!nextRole) {
+      return interaction.editReply("✅ No new roles to add for this promotion.");
+    }
 
-    const rolesToAdd = eligibleRoles
-      .slice(0, targetIndex + 1)
-      .filter(role => !member.roles.cache.has(role.roleId))
-      .map(role => role.roleId);
+    const rolesToAdd = member.roles.cache.has(nextRole) ? [] : [nextRole];
 
     if (!rolesToAdd.length) {
       return interaction.editReply("✅ No new roles to add for this promotion.");
     }
 
     await member.roles.add(rolesToAdd).catch(() => null);
+    await setPromoCount(interaction.guild, member.id, promoCount + 1);
 
     return interaction.editReply(
       `✅ Promoted **${member.user.tag}** to the next staff tier.`
