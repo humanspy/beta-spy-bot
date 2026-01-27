@@ -244,6 +244,42 @@ export const guildCommands = [
   new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription("Show the server leaderboard"),
+
+  new SlashCommandBuilder()
+    .setName("nick")
+    .setDescription("Manage nicknames")
+    .addSubcommand(sub =>
+      sub
+        .setName("add")
+        .setDescription("Set your nickname")
+        .addStringOption(o =>
+          o.setName("name").setDescription("Nickname").setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName("reset")
+        .setDescription("Reset your nickname")
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName("force")
+        .setDescription("Force a nickname for a user")
+        .addUserOption(o =>
+          o.setName("target").setDescription("Target user").setRequired(true)
+        )
+        .addStringOption(o =>
+          o.setName("name").setDescription("Nickname").setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName("forcereset")
+        .setDescription("Force reset a user's nickname")
+        .addUserOption(o =>
+          o.setName("target").setDescription("Target user").setRequired(true)
+        )
+    ),
  
 ].map(cmd => cmd.toJSON());
 
