@@ -1,4 +1,5 @@
 import { hasPermission } from "../../../moderation/core.js";
+import { getUserData, setUserData } from "../storage.js";
 
 async function updateNickname({ interaction, member, nickname, reason }) {
   try {
@@ -28,6 +29,12 @@ export default async function nick(interaction) {
 
   if (sub === "add") {
     const name = interaction.options.getString("name", true);
+    const data = await getUserData(guild, actor.id);
+    if (data.nicknameLocked) {
+      return interaction.editReply(
+        "❌ Your nickname is locked by staff. Ask a staff member to reset it."
+      );
+    }
     const member = await guild.members.fetch(actor.id).catch(() => null);
     if (!member) {
       return interaction.editReply("❌ Unable to find your member record.");
@@ -40,11 +47,22 @@ export default async function nick(interaction) {
       reason: `Nickname set by ${actor.tag}`,
     });
     if (!updated) return false;
+    await setUserData(guild, actor.id, {
+      ...data,
+      nickname: name,
+      nicknameLocked: false,
+    });
 
     return interaction.editReply(`✅ Your nickname is now **${name}**.`);
   }
 
   if (sub === "reset") {
+    const data = await getUserData(guild, actor.id);
+    if (data.nicknameLocked) {
+      return interaction.editReply(
+        "❌ Your nickname is locked by staff. Ask a staff member to reset it."
+      );
+    }
     const member = await guild.members.fetch(actor.id).catch(() => null);
     if (!member) {
       return interaction.editReply("❌ Unable to find your member record.");
@@ -57,6 +75,11 @@ export default async function nick(interaction) {
       reason: `Nickname reset by ${actor.tag}`,
     });
     if (!updated) return false;
+    await setUserData(guild, actor.id, {
+      ...data,
+      nickname: null,
+      nicknameLocked: false,
+    });
 
     return interaction.editReply("✅ Your nickname has been reset.");
   }
@@ -72,6 +95,7 @@ export default async function nick(interaction) {
       return interaction.editReply("❌ Unable to find that member.");
     }
 
+    const data = await getUserData(guild, target.id);
     const nickname =
       sub === "force" ? interaction.options.getString("name", true) : null;
     const reason =
@@ -86,6 +110,11 @@ export default async function nick(interaction) {
       reason,
     });
     if (!updated) return false;
+    await setUserData(guild, target.id, {
+      ...data,
+      nickname,
+      nicknameLocked: sub === "force",
+    });
 
     return interaction.editReply(
       sub === "force"
