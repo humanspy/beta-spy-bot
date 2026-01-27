@@ -199,13 +199,6 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("remove")
-        .setDescription("Remove a staff warning")
-        .addIntegerOption(o =>
-          o.setName("warn_id").setDescription("Warning ID").setRequired(true)
-        )
-    )
-    .addSubcommand(sub =>
       sub.setName("list")
         .setDescription("List staff warnings")
         .addUserOption(o =>
@@ -213,40 +206,25 @@ export const guildCommands = [
         )
     )
     .addSubcommand(sub =>
-      sub.setName("config")
-        .setDescription("Configure staff warning limits")
+      sub.setName("modify")
+        .setDescription("Modify staff warning limits")
         .addIntegerOption(o =>
           o.setName("max_warns").setDescription("Max active warns (1–20)").setRequired(true)
         )
     ),
 
   new SlashCommandBuilder()
-    .setName("promotion")
-    .setDescription("Manage staff promotions")
-    .addSubcommand(sub =>
-      sub.setName("apply")
-        .setDescription("Promote a staff member")
-        .addUserOption(o =>
-          o.setName("user").setDescription("Staff member").setRequired(true)
-        )
-    )
-    .addSubcommand(sub =>
-      sub.setName("config")
-        .setDescription("Configure first promotion role count")
-        .addIntegerOption(o =>
-          o.setName("first_roles").setDescription("Roles granted on first promotion").setRequired(true)
-        )
+    .setName("promote")
+    .setDescription("Promote a staff member")
+    .addUserOption(o =>
+      o.setName("user").setDescription("Staff member").setRequired(true)
     ),
 
   new SlashCommandBuilder()
-    .setName("demotion")
-    .setDescription("Manage staff demotions")
-    .addSubcommand(sub =>
-      sub.setName("apply")
-        .setDescription("Demote a staff member")
-        .addUserOption(o =>
-          o.setName("user").setDescription("Staff member").setRequired(true)
-        )
+    .setName("demote")
+    .setDescription("Demote a staff member")
+    .addUserOption(o =>
+      o.setName("user").setDescription("Staff member").setRequired(true)
     ),
 
   new SlashCommandBuilder()

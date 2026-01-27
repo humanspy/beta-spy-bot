@@ -7,8 +7,8 @@ export async function handleStaffModeration(interaction) {
   const sub = interaction.options.getSubcommand(false);
 
   if (command === "staffwarn") return staffwarn(interaction, sub);
-  if (command === "promotion") return promotion(interaction, sub);
-  if (command === "demotion") return demotion(interaction, sub);
+  if (command === "promote") return promotion(interaction);
+  if (command === "demote") return demotion(interaction);
 
   return false;
 }

@@ -5,7 +5,6 @@ import {
   addStaffWarn,
   clearStaffWarns,
   getActiveStaffWarns,
-  removeStaffWarn,
 } from "../../moderation/staffWarns.js";
 
 function sortRoleIdsAscending(roleIds) {
@@ -141,39 +140,6 @@ export default async function staffwarn(interaction, sub) {
       );
     }
 
-    if (sub === "remove") {
-      const warnId = interaction.options.getInteger("warn_id");
-      if (!warnId) {
-        return interaction.editReply("❌ Provide a warning ID.");
-      }
-
-      const removed = await removeStaffWarn(interaction.guild, warnId);
-      if (!removed) {
-        return interaction.editReply("❌ Warning not found.");
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(0x57f287)
-        .setTitle("✅ Staff Warning Removed")
-        .addFields(
-          { name: "Warn ID", value: `#${warnId}` },
-          { name: "Moderator", value: `<@${interaction.user.id}>` }
-        )
-        .setTimestamp();
-
-      const channelId = config.channels?.staffWarnings;
-      if (channelId) {
-        const channel = await interaction.guild.channels
-          .fetch(channelId)
-          .catch(() => null);
-        if (channel?.isTextBased()) {
-          await channel.send({ embeds: [embed] });
-        }
-      }
-
-      return interaction.editReply(`✅ Staff warning #${warnId} removed.`);
-    }
-
     if (sub === "list") {
       const staffMember = interaction.options.getMember("user");
       if (!staffMember) {
@@ -213,7 +179,10 @@ export default async function staffwarn(interaction, sub) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    if (sub === "config") {
+    if (sub === "modify") {
+      if (!(await hasPermission(interaction.member, "staffwarn_modify"))) {
+        return interaction.editReply("❌ No permission.");
+      }
       const maxWarnsInput = interaction.options.getInteger("max_warns");
       if (!maxWarnsInput || maxWarnsInput < 1 || maxWarnsInput > 20) {
         return interaction.editReply("❌ Max warns must be between 1 and 20.");

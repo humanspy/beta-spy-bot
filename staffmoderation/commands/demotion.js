@@ -38,7 +38,7 @@ function resolveEligibleRoles(staffRoles, highestRoleId) {
   };
 }
 
-export default async function demotion(interaction, _sub) {
+export default async function demotion(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 

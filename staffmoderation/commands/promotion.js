@@ -1,6 +1,6 @@
 import { hasPermission } from "../../moderation/core.js";
 import { getStaffConfig } from "../../moderation/staffConfig.js";
-import { getPromoConfig, savePromoConfig } from "../promoConfig.js";
+import { getPromoConfig } from "../promoConfig.js";
 
 function sortRoleIdsAscending(roles) {
   return [...roles].sort((a, b) => {
@@ -38,7 +38,7 @@ function resolveEligibleRoles(staffRoles, highestRoleId) {
   };
 }
 
-export default async function promotion(interaction, sub) {
+export default async function promotion(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
@@ -49,29 +49,6 @@ export default async function promotion(interaction, sub) {
     const staffConfig = await getStaffConfig(interaction.guild);
     if (!staffConfig) {
       return interaction.editReply("❌ Run /setup start first.");
-    }
-
-    if (sub === "config") {
-      const firstPromotionRoles = interaction.options.getInteger(
-        "first_roles"
-      );
-      if (!firstPromotionRoles || firstPromotionRoles < 1) {
-        return interaction.editReply(
-          "❌ First promotion roles must be at least 1."
-        );
-      }
-
-      const currentConfig = (await getPromoConfig(interaction.guild)) ?? {
-        highestRoleId: null,
-        firstPromotionRoles: 1,
-      };
-      await savePromoConfig(interaction.guild, {
-        ...currentConfig,
-        firstPromotionRoles,
-      });
-      return interaction.editReply(
-        `✅ First promotion will now award **${firstPromotionRoles}** role(s).`
-      );
     }
 
     const member = interaction.options.getMember("user");

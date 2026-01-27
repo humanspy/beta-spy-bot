@@ -27,6 +27,8 @@ const PERMISSIONS = [
   "setup",
   "warn",
   "warnstaff",
+  "staffwarn_delete",
+  "staffwarn_modify",
   "promote",
   "demote",
   "timeout",
