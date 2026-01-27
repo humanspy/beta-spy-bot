@@ -214,20 +214,6 @@ export const guildCommands = [
     ),
 
   new SlashCommandBuilder()
-    .setName("promote")
-    .setDescription("Promote a staff member")
-    .addUserOption(o =>
-      o.setName("user").setDescription("Staff member").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("demote")
-    .setDescription("Demote a staff member")
-    .addUserOption(o =>
-      o.setName("user").setDescription("Staff member").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
     .setName("help")
     .setDescription("Show all moderation commands"),
 

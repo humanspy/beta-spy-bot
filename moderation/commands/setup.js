@@ -29,8 +29,6 @@ const PERMISSIONS = [
   "warnstaff",
   "staffwarn_delete",
   "staffwarn_modify",
-  "promote",
-  "demote",
   "timeout",
   "case",
   "case_delete",
@@ -347,7 +345,6 @@ export default {
       },
       staffWarnConfig: {
         maxWarns: 3,
-        action: "demote",
       },
       overrideCode: null,
       overrideRegenHours: 24,

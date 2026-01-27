@@ -12,8 +12,6 @@ export default async function help(interaction) {
       "**/purge**\n" +
       "**/kick**\n" +
       "**/staffwarn add | list | modify**\n" +
-      "**/promote**\n" +
-      "**/demote**\n" +
       "**/generatebancode**\n" +
       "**/regentimer**"
     )
