@@ -31,7 +31,6 @@ const PERMISSIONS = [
   "staffwarn_modify",
   "promote",
   "demote",
-  "custom-msg",
   "timeout",
   "case",
   "case_delete",
