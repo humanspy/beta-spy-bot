@@ -144,14 +144,9 @@ export async function syncGuildStaffRoleAssignments(guild, staffRoles) {
   }
 }
 
-export async function syncAllStaffRoleAssignments(
-  guildConfigs,
-  { clearExisting = false } = {}
-) {
+export async function syncAllStaffRoleAssignments(guildConfigs) {
   await ensureTable();
-  if (clearExisting) {
-    await pool.query(`DELETE FROM \`${TABLE_NAME}\``);
-  }
+  await pool.query(`DELETE FROM \`${TABLE_NAME}\``);
 
   if (!guildConfigs?.length) return;
 
@@ -179,11 +174,7 @@ export async function syncAllStaffRoleAssignments(
     const chunk = rows.slice(i, i + chunkSize);
     await pool.query(
       `INSERT INTO \`${TABLE_NAME}\` (guild_id, staff_role_id, user_id, role_level, role_name)
-       VALUES ?
-       ON DUPLICATE KEY UPDATE
-         role_level = VALUES(role_level),
-         role_name = VALUES(role_name),
-         updated_at = CURRENT_TIMESTAMP`,
+       VALUES ?`,
       [chunk]
     );
   }
