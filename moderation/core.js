@@ -5,7 +5,7 @@ import {
   getGuildTableName,
   getLegacyGuildTableName,
 } from "../database/tableNames.js";
-import { getStaffConfig } from "./staffConfig.js";
+import { getStaffConfigFresh } from "./staffConfig.js";
 
 /* ===================== BOT OWNERS ===================== */
 
@@ -296,7 +296,7 @@ export async function logModerationAction({
     if (!staffRole) return;
   }
 
-  const config = await getStaffConfig(guild);
+  const config = await getStaffConfigFresh(guild);
   const channelId = config?.channels?.modLogs;
   if (!channelId) return;
 
