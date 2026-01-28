@@ -63,30 +63,15 @@ async function ensureTable() {
   return tableName;
 }
 
-export async function getStaffConfig(guild) {
-  const guildId = typeof guild === "object" ? guild?.id : guild;
-  const cached = staffConfigCache.get(String(guildId));
-  if (cached) return cached;
-
-  const tableName = await ensureTable();
-  const [rows] = await pool.query(
-    `SELECT staff_roles_json, channels_json, level_roles_json,
-            staffwarn_config_json, override_code, override_regen_hours
-     FROM \`${tableName}\`
-     WHERE guild_id = ?`,
-    [guildId]
-  );
-  if (!rows.length) return null;
-
-  const row = rows[0];
+function buildStaffConfigFromRow(row, guildId) {
   const staffRoles =
     typeof row.staff_roles_json === "string"
-    ? JSON.parse(row.staff_roles_json)
-    : row.staff_roles_json;
+      ? JSON.parse(row.staff_roles_json)
+      : row.staff_roles_json;
   const channels =
     typeof row.channels_json === "string"
-    ? JSON.parse(row.channels_json)
-    : row.channels_json;
+      ? JSON.parse(row.channels_json)
+      : row.channels_json;
   const levelRoles =
     row.level_roles_json
       ? typeof row.level_roles_json === "string"
@@ -104,7 +89,7 @@ export async function getStaffConfig(guild) {
     ...staffWarnConfigRaw,
   };
 
-  const config = {
+  return {
     guildId,
     staffRoles,
     channels,
@@ -113,8 +98,42 @@ export async function getStaffConfig(guild) {
     overrideCode: row.override_code ?? null,
     overrideRegenHours: row.override_regen_hours ?? 24,
   };
+}
+
+export async function getStaffConfig(guild) {
+  const guildId = typeof guild === "object" ? guild?.id : guild;
+  const cached = staffConfigCache.get(String(guildId));
+  if (cached) return cached;
+
+  const tableName = await ensureTable();
+  const [rows] = await pool.query(
+    `SELECT staff_roles_json, channels_json, level_roles_json,
+            staffwarn_config_json, override_code, override_regen_hours
+     FROM \`${tableName}\`
+     WHERE guild_id = ?`,
+    [guildId]
+  );
+  if (!rows.length) return null;
+
+  const row = rows[0];
+  const config = buildStaffConfigFromRow(row, guildId);
   staffConfigCache.set(String(guildId), config);
   return config;
+}
+
+export async function getStaffConfigFresh(guild) {
+  const guildId = typeof guild === "object" ? guild?.id : guild;
+  const tableName = await ensureTable();
+  const [rows] = await pool.query(
+    `SELECT staff_roles_json, channels_json, level_roles_json,
+            staffwarn_config_json, override_code, override_regen_hours
+     FROM \`${tableName}\`
+     WHERE guild_id = ?`,
+    [guildId]
+  );
+  if (!rows.length) return null;
+
+  return buildStaffConfigFromRow(rows[0], guildId);
 }
 
 export async function saveStaffConfig(guild, config) {
@@ -188,39 +207,10 @@ export async function initStaffConfigCache() {
   );
 
   rows.forEach(row => {
-    const staffRoles =
-      typeof row.staff_roles_json === "string"
-        ? JSON.parse(row.staff_roles_json)
-        : row.staff_roles_json;
-    const channels =
-      typeof row.channels_json === "string"
-        ? JSON.parse(row.channels_json)
-        : row.channels_json;
-    const levelRoles =
-      row.level_roles_json
-        ? typeof row.level_roles_json === "string"
-          ? JSON.parse(row.level_roles_json)
-          : row.level_roles_json
-        : getDefaultLevelRoles();
-    const staffWarnConfigRaw =
-      row.staffwarn_config_json
-        ? typeof row.staffwarn_config_json === "string"
-          ? JSON.parse(row.staffwarn_config_json)
-          : row.staffwarn_config_json
-        : {};
-    const staffWarnConfig = {
-      ...getDefaultStaffWarnConfig(),
-      ...staffWarnConfigRaw,
-    };
-    staffConfigCache.set(String(row.guild_id), {
-      guildId: row.guild_id,
-      staffRoles,
-      channels,
-      levelRoles,
-      staffWarnConfig,
-      overrideCode: row.override_code ?? null,
-      overrideRegenHours: row.override_regen_hours ?? 24,
-    });
+    staffConfigCache.set(
+      String(row.guild_id),
+      buildStaffConfigFromRow(row, row.guild_id)
+    );
   });
 
   cacheInitialized = true;
