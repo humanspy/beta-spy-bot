@@ -24,7 +24,7 @@ import {
   syncAllStaffRoleAssignments,
   syncGuildStaffRoleAssignments,
   syncMemberStaffRoleAssignments,
-} from "./moderation/staffRoleAssignments.js";
+} from "./staffmoderation/staffRoleAssignments.js";
 
 import { handleCounting } from "./counting/index.js";
 import { handleLeveling } from "./profile/level/index.js";

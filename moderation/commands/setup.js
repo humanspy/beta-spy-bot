@@ -37,6 +37,8 @@ const PERMISSIONS = [
   "ban",
   "unban",
   "hackban",
+  "promo",
+  "demote",
   "all",
 ];
 

@@ -54,13 +54,23 @@ async function ensureStaffWarnTable(guild) {
   return tableName;
 }
 
-async function pruneExpiredStaffWarns(guild) {
+export async function pruneExpiredStaffWarns(guild) {
   const tableName = await ensureStaffWarnTable(guild);
   await pool.query(
     `DELETE FROM \`${tableName}\`
      WHERE expires_at <= ?`,
     [Date.now()]
   );
+}
+
+export async function getRecentGuildWarns(guild, durationMs) {
+  const tableName = await ensureStaffWarnTable(guild);
+  const cutoff = Date.now() - durationMs;
+  const [rows] = await pool.query(
+    `SELECT staff_id FROM \`${tableName}\` WHERE created_at > ?`,
+    [cutoff]
+  );
+  return rows.map(r => r.staff_id);
 }
 
 export async function getActiveStaffWarns(guild, staffId) {

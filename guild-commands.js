@@ -214,6 +214,31 @@ export const guildCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("promo")
+    .setDescription("Manage staff promotions")
+    .addSubcommand(sub =>
+      sub.setName("user")
+        .setDescription("Promote a user")
+        .addUserOption(o => o.setName("user").setDescription("Target user").setRequired(true))
+    )
+    .addSubcommand(sub =>
+      sub.setName("setup")
+        .setDescription("Configure promotion settings")
+        .addStringOption(o => o.setName("entry_roles").setDescription("Comma-separated Role IDs for first promotion"))
+        .addRoleOption(o => o.setName("max_role").setDescription("Highest role for auto-promotion"))
+    )
+    .addSubcommand(sub =>
+      sub.setName("auto")
+        .setDescription("Run auto-promotion check manually")
+    ),
+
+  new SlashCommandBuilder()
+    .setName("demote")
+    .setDescription("Demote a staff member")
+    .addUserOption(o => o.setName("user").setDescription("Target user").setRequired(true))
+    .addStringOption(o => o.setName("reason").setDescription("Reason")),
+
+  new SlashCommandBuilder()
     .setName("help")
     .setDescription("Show all moderation commands"),
 
@@ -268,9 +293,3 @@ export const guildCommands = [
     ),
  
 ].map(cmd => cmd.toJSON());
-
-
-
-
-
-

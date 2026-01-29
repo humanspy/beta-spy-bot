@@ -1,11 +1,14 @@
 import { EmbedBuilder } from "discord.js";
 import { getHighestStaffRole, hasPermission } from "../../moderation/core.js";
 import { getStaffConfig, saveStaffConfig } from "../../moderation/staffConfig.js";
+import { demoteStaffMember } from "../utils.js";
 import {
   addStaffWarn,
   clearStaffWarns,
   getActiveStaffWarns,
+  pruneExpiredStaffWarns,
 } from "../staffWarns.js";
+import { pool } from "../../database/mysql.js";
 
 function sortRoleIdsAscending(roleIds) {
   return [...roleIds].sort((a, b) => {
@@ -29,6 +32,8 @@ export default async function staffwarn(interaction, sub) {
     if (!config) {
       return interaction.editReply("❌ Run /setup start first.");
     }
+
+    await pruneExpiredStaffWarns(interaction.guild);
 
     const maxWarns = config.staffWarnConfig?.maxWarns ?? 3;
     const maxWarnAction =
@@ -66,11 +71,10 @@ export default async function staffwarn(interaction, sub) {
 
       const reachedMax = activeWarns.length + 1 >= maxWarns;
       if (reachedMax) {
-        const staffRoleIds = sortRoleIdsAscending(
-          (config.staffRoles ?? []).map(role => role.roleId)
-        );
-
         if (maxWarnAction === "strip") {
+          const staffRoleIds = sortRoleIdsAscending(
+            (config.staffRoles ?? []).map(role => role.roleId)
+          );
           const rolesToRemove = staffRoleIds.filter(roleId =>
             staffMember.roles.cache.has(roleId)
           );
@@ -78,17 +82,7 @@ export default async function staffwarn(interaction, sub) {
             await staffMember.roles.remove(rolesToRemove).catch(() => {});
           }
         } else {
-          const ownedRoles = staffRoleIds.filter(roleId =>
-            staffMember.roles.cache.has(roleId)
-          );
-          if (ownedRoles.length <= 2) {
-            await staffMember.roles.remove(ownedRoles).catch(() => {});
-          } else {
-            const lowestRoleId = ownedRoles[0];
-            if (lowestRoleId) {
-              await staffMember.roles.remove(lowestRoleId).catch(() => {});
-            }
-          }
+          await demoteStaffMember(interaction.guild, staffMember, "Max Staff Warnings Reached");
         }
 
         await clearStaffWarns(interaction.guild, staffMember.id);
