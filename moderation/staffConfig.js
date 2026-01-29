@@ -1,5 +1,5 @@
 import { pool } from "../database/mysql.js";
-import { syncGuildStaffRoleAssignments } from "./staffRoleAssignments.js";
+import { syncGuildStaffRoleAssignments } from "../staffmoderation/staffRoleAssignments.js";
 
 const staffConfigCache = new Map();
 let cacheInitialized = false;

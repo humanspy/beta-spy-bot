@@ -5,7 +5,7 @@ import {
   addStaffWarn,
   clearStaffWarns,
   getActiveStaffWarns,
-} from "../../moderation/staffWarns.js";
+} from "../staffWarns.js";
 
 function sortRoleIdsAscending(roleIds) {
   return [...roleIds].sort((a, b) => {

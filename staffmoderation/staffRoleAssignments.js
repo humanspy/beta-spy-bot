@@ -47,6 +47,24 @@ async function ensureTable() {
   return TABLE_NAME;
 }
 
+async function getRoleLevels(guildId) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT staff_roles_json FROM staffconfig WHERE guild_id = ?`,
+      [guildId]
+    );
+    if (!rows.length) return new Map();
+    const roles =
+      typeof rows[0].staff_roles_json === "string"
+        ? JSON.parse(rows[0].staff_roles_json)
+        : rows[0].staff_roles_json;
+    if (!Array.isArray(roles)) return new Map();
+    return new Map(roles.map(r => [r.roleId, r.level]));
+  } catch {
+    return new Map();
+  }
+}
+
 export async function syncMemberStaffRoleAssignments(member, staffRoles) {
   if (!member) return;
   await ensureTable();
@@ -56,7 +74,12 @@ export async function syncMemberStaffRoleAssignments(member, staffRoles) {
     return;
   }
 
+  const levelMap = await getRoleLevels(member.guild.id);
+
   for (const { roleId, roleName, level } of staffRoleEntries) {
+    const dbLevel = levelMap.get(roleId);
+    const finalLevel = dbLevel !== undefined ? dbLevel : (level ?? 0);
+
     if (member.roles.cache.has(roleId)) {
       const resolvedRoleName =
         roleName ?? member.guild.roles.cache.get(roleId)?.name ?? null;
@@ -68,7 +91,7 @@ export async function syncMemberStaffRoleAssignments(member, staffRoles) {
            role_level = VALUES(role_level),
            role_name = VALUES(role_name),
            updated_at = CURRENT_TIMESTAMP`,
-        [member.guild.id, roleId, member.id, level ?? 0, resolvedRoleName]
+        [member.guild.id, roleId, member.id, finalLevel, resolvedRoleName]
       );
     } else {
       await pool.query(
@@ -100,15 +123,18 @@ export async function syncGuildStaffRoleAssignments(guild, staffRoles) {
 
   if (!staffRoleEntries.length) return;
 
+  const levelMap = await getRoleLevels(guild.id);
   const members = await guild.members.fetch();
   const rows = [];
 
   for (const member of members.values()) {
     for (const { roleId, roleName, level } of staffRoleEntries) {
+      const dbLevel = levelMap.get(roleId);
+      const finalLevel = dbLevel !== undefined ? dbLevel : (level ?? 0);
       const resolvedRoleName =
         roleName ?? guild.roles.cache.get(roleId)?.name ?? null;
       if (member.roles.cache.has(roleId)) {
-        rows.push([guild.id, roleId, member.id, level ?? 0, resolvedRoleName]);
+        rows.push([guild.id, roleId, member.id, finalLevel, resolvedRoleName]);
       }
     }
   }
