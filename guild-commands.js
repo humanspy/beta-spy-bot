@@ -225,6 +225,9 @@ export const guildCommands = [
       sub.setName("setup")
         .setDescription("Configure promotion settings")
         .addStringOption(o => o.setName("entry_roles").setDescription("Comma-separated Role IDs for first promotion"))
+        .addRoleOption(o => o.setName("entry_role_1").setDescription("Additional entry role"))
+        .addRoleOption(o => o.setName("entry_role_2").setDescription("Additional entry role"))
+        .addRoleOption(o => o.setName("entry_role_3").setDescription("Additional entry role"))
         .addRoleOption(o => o.setName("max_role").setDescription("Highest role for auto-promotion"))
     )
     .addSubcommand(sub =>

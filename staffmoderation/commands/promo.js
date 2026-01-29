@@ -14,18 +14,30 @@ export default async function promo(interaction) {
 
     const entryRolesStr = interaction.options.getString("entry_roles");
     const maxRole = interaction.options.getRole("max_role");
+    const role1 = interaction.options.getRole("entry_role_1");
+    const role2 = interaction.options.getRole("entry_role_2");
+    const role3 = interaction.options.getRole("entry_role_3");
 
-    const entryRoles = entryRolesStr 
-      ? entryRolesStr.split(",").map(r => r.trim().replace(/[^0-9]/g, "")).filter(Boolean)
-      : [];
+    const currentConfig = await getPromotionConfig(interaction.guild.id) || { entryRoles: [], maxRoleId: null };
+    let entryRoles = currentConfig.entryRoles;
+
+    if (entryRolesStr || role1 || role2 || role3) {
+      const fromString = entryRolesStr 
+        ? entryRolesStr.split(",").map(r => r.trim().replace(/[^0-9]/g, "")).filter(Boolean)
+        : [];
+      const fromRoles = [role1, role2, role3].filter(Boolean).map(r => r.id);
+      entryRoles = [...new Set([...fromString, ...fromRoles])];
+    }
+
+    const maxRoleId = maxRole ? maxRole.id : currentConfig.maxRoleId;
 
     await savePromotionConfig(interaction.guild.id, {
       entryRoles,
-      maxRoleId: maxRole?.id || null
+      maxRoleId
     });
 
     return interaction.reply({
-      content: `✅ Promotion config saved.\nEntry Roles: ${entryRoles.map(r => `<@&${r}>`).join(", ") || "None"}\nMax Auto-Promo Role: ${maxRole ? `<@&${maxRole.id}>` : "None"}`,
+      content: `✅ Promotion config saved.\nEntry Roles: ${entryRoles.map(r => `<@&${r}>`).join(", ") || "None"}\nMax Auto-Promo Role: ${maxRoleId ? `<@&${maxRoleId}>` : "None"}`,
       ephemeral: true
     });
   }
